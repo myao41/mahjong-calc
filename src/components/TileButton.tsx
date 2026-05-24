@@ -1,5 +1,5 @@
 import type { Tile } from '../types';
-import tilesSprite from '../assets/tiles.png';
+import tilesSprite from '../assets/tiles_v2.jpg';
 import { useViewport } from '../utils/useViewport';
 
 interface Props {
@@ -10,38 +10,44 @@ interface Props {
   disabled?: boolean;
 }
 
-const SPRITE_COLS = 10;
-const SPRITE_ROWS = 4;
-const NATIVE_TILE_W = 76;
-const NATIVE_TILE_H = 114;
-// Vertical content offset within each row's cell (native pixels).
-// The sprite art is drawn with progressively lower baselines per row,
-// so we shift the background up to align the tile content.
-const ROW_OFFSET_PX = [0, 8, 12, 16];
+// 新スプライト: 640x480, 9列 x 5行
+// Row 0: 萬子 1-9 (col 0-8)
+// Row 1: 筒子 1-9
+// Row 2: 索子 1-9
+// Row 3: 字牌 (col 0-3: 東南西北, col 4: 空, col 5: 白, col 6: 發, col 7: 中, col 8: 空)
+// Row 4: 花牌 (使用しない)
+const SPRITE_COLS = 9;
+const SPRITE_ROWS = 5;
+const NATIVE_TILE_W = 640 / SPRITE_COLS; // ≈ 71.11
+const NATIVE_TILE_H = 480 / SPRITE_ROWS; // = 96
 
 function spriteCoord(tile: Tile): { col: number; row: number } {
   if (tile.suit === 'z') {
-    return { row: 0, col: tile.num - 1 };
+    // 字牌: z1-z4 → col 0-3, z5(白) → col 5, z6(發) → col 6, z7(中) → col 7
+    const colMap = [0, 0, 1, 2, 3, 5, 6, 7]; // index by tile.num (1-7)
+    return { row: 3, col: colMap[tile.num] };
   }
-  const rowMap: Record<string, number> = { m: 1, s: 2, p: 3 };
+  const rowMap: Record<string, number> = { m: 0, p: 1, s: 2 };
   const row = rowMap[tile.suit];
-  if (tile.isRed && tile.num === 5) return { row, col: 5 };
-  const col = tile.num <= 5 ? tile.num - 1 : tile.num;
-  return { row, col };
+  // 数牌: col = num - 1 (1-9 → 0-8)。赤ドラも同じセル（視覚的に区別は別途）
+  return { row, col: tile.num - 1 };
 }
 
 export function TileButton({ tile, onClick, selected, size = 'normal', disabled }: Props) {
   const { isMobile } = useViewport();
   const isSmall = size === 'small';
-  const width = isSmall ? (isMobile ? 20 : 28) : (isMobile ? 22 : 34);
-  const height = isSmall ? (isMobile ? 30 : 42) : (isMobile ? 33 : 51);
+  // 新スプライトのアスペクト比 71.11:96 ≈ 0.74:1
+  // 縦長気味なので幅基準で算出
+  // 新スプライトのアスペクト比 (71.11:96 ≈ 3:4) に合わせて再計算
+  const width = isSmall ? (isMobile ? 18 : 24) : (isMobile ? 22 : 32);
+  const height = Math.round(width * NATIVE_TILE_H / NATIVE_TILE_W);
 
   const { col, row } = spriteCoord(tile);
   const scale = width / NATIVE_TILE_W;
-  const bgW = NATIVE_TILE_W * SPRITE_COLS * scale;
-  const bgH = NATIVE_TILE_H * SPRITE_ROWS * scale;
-  const bgX = -col * width;
-  const bgY = -(row * NATIVE_TILE_H + ROW_OFFSET_PX[row]) * scale;
+  const bgW = 640 * scale;
+  const bgH = 480 * scale;
+  const bgX = -col * NATIVE_TILE_W * scale;
+  const bgY = -row * NATIVE_TILE_H * scale;
 
   return (
     <div
@@ -63,6 +69,20 @@ export function TileButton({ tile, onClick, selected, size = 'normal', disabled 
         borderRadius: 3,
         boxShadow: selected ? '0 0 4px rgba(230,126,34,0.5)' : 'none',
       }}
-    />
+    >
+      {/* 赤ドラインジケータ */}
+      {tile.isRed && (
+        <span style={{
+          position: 'absolute',
+          top: 1,
+          right: 1,
+          width: 6,
+          height: 6,
+          borderRadius: '50%',
+          background: '#e74c3c',
+          boxShadow: '0 0 2px rgba(0,0,0,0.3)',
+        }} />
+      )}
+    </div>
   );
 }

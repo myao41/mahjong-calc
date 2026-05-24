@@ -10,11 +10,9 @@ import type { Tile } from '../types';
 
 /** 鳴いた牌の最左を90度横向きに表示するヘルパー */
 function RotatedTile({ tile, isMobile }: { tile: Tile; isMobile: boolean }) {
-  const tileW = isMobile ? 22 : 34;
-  const tileH = isMobile ? 33 : 51;
-  // 回転後の見た目: 横向きなので幅=tileH, 高さ=tileW
-  // tile-box の影が回転で左側に行くため、視覚的な下部位置が
-  // 縦向き牌より上に見える。marginBottom で 2px 下方向にずらして揃える。
+  // 新スプライト (3:4 比率) に合わせる
+  const tileW = isMobile ? 22 : 32;
+  const tileH = isMobile ? 30 : 43;
   return (
     <div style={{
       width: tileH,
@@ -23,7 +21,6 @@ function RotatedTile({ tile, isMobile }: { tile: Tile; isMobile: boolean }) {
       alignItems: 'center',
       justifyContent: 'center',
       flexShrink: 0,
-      marginBottom: -2,
     }}>
       <div style={{ transform: 'rotate(-90deg)' }}>
         <TileButton tile={tile} size="normal" />
@@ -182,76 +179,71 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
         border: '1px solid #e0e0e0',
       }}>
         <div style={{ fontSize: isMobile ? 13 : 15, color: '#7f8c8d', marginBottom: 6 }}>手牌</div>
-        <div style={{
-          display: 'flex', flexWrap: 'nowrap',
-          gap: isMobile ? 2 : 4,
-          alignItems: 'flex-end', justifyContent: 'center',
-        }}>
-          {question.closedTiles.map((tile, i) => {
-            const isLastMatch = (() => {
-              let lastIdx = -1;
-              for (let j = 0; j < question.closedTiles.length; j++) {
-                if (question.closedTiles[j].suit === condition.agariTile.suit &&
-                    question.closedTiles[j].num === condition.agariTile.num) {
-                  lastIdx = j;
-                }
-              }
-              return i === lastIdx;
-            })();
+        {(() => {
+          // アガリ牌の位置を特定（同じ牌が複数ある場合は最後の出現を採用）
+          let agariIdx = -1;
+          for (let j = 0; j < question.closedTiles.length; j++) {
+            if (question.closedTiles[j].suit === condition.agariTile.suit &&
+                question.closedTiles[j].num === condition.agariTile.num) {
+              agariIdx = j;
+            }
+          }
+          const mainHand = question.closedTiles.filter((_, i) => i !== agariIdx);
+          const agariTile = agariIdx >= 0 ? question.closedTiles[agariIdx] : null;
 
-            return (
-              <div key={i} style={{ position: 'relative', flexShrink: 0 }}>
-                <TileButton tile={tile} />
-                {isLastMatch && (
-                  <>
+          return (
+            <div style={{
+              display: 'flex', flexWrap: 'nowrap',
+              alignItems: 'flex-end', justifyContent: 'center',
+            }}>
+              {/* 主手牌（gap 0 で密に詰める） */}
+              {mainHand.map((tile, i) => (
+                <div key={i} style={{ flexShrink: 0 }}>
+                  <TileButton tile={tile} />
+                </div>
+              ))}
+
+              {/* アガリ牌 + ラベル */}
+              {agariTile && (
+                <>
+                  <div style={{ width: isMobile ? 8 : 12, flexShrink: 0 }} />
+                  <div style={{
+                    display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', flexShrink: 0,
+                  }}>
                     <div style={{
-                      position: 'absolute',
-                      top: -8, right: -3, bottom: -2, left: -3,
-                      border: '2px solid #e67e22',
-                      borderRadius: 6,
-                      pointerEvents: 'none',
-                      boxShadow: '0 0 4px rgba(230,126,34,0.5)',
-                    }} />
-                    <div style={{
-                      position: 'absolute',
-                      bottom: 'calc(100% + 3px)',
-                      left: '50%',
-                      transform: 'translateX(-50%)',
-                      background: '#e67e22', color: '#fff',
-                      fontSize: 11, borderRadius: 4, padding: '2px 6px',
-                      fontWeight: 'bold', lineHeight: 1.2,
-                      whiteSpace: 'nowrap',
+                      fontSize: isMobile ? 10 : 11,
+                      color: '#e67e22', fontWeight: 'bold',
+                      lineHeight: 1, marginBottom: 2,
                     }}>
                       {isTsumo ? 'ツモ' : 'ロン'}
                     </div>
-                  </>
-                )}
-              </div>
-            );
-          })}
+                    <TileButton tile={agariTile} />
+                  </div>
+                </>
+              )}
 
-          {question.openMelds.length > 0 && (
-            <div style={{ width: isMobile ? 6 : 10, flexShrink: 0 }} />
-          )}
-
-          {question.openMelds.map((meld, mi) => (
-            <div key={`meld-${mi}`} style={{
-              display: 'flex', gap: 1,
-              alignItems: 'flex-end',
-              padding: isMobile ? '3px 4px' : '5px 6px',
-              border: '1px dashed #bdc3c7',
-              borderRadius: 8,
-              marginLeft: mi > 0 ? 4 : 0,
-              marginBottom: isMobile ? -4 : -6,
-            }}>
-              {meld.tiles.map((tile, ti) => (
-                ti === 0
-                  ? <RotatedTile key={ti} tile={tile} isMobile={isMobile} />
-                  : <TileButton key={ti} tile={tile} size="normal" />
+              {/* 副露 */}
+              {question.openMelds.length > 0 && (
+                <div style={{ width: isMobile ? 8 : 12, flexShrink: 0 }} />
+              )}
+              {question.openMelds.map((meld, mi) => (
+                <div key={`meld-${mi}`} style={{
+                  display: 'flex',
+                  alignItems: 'flex-end',
+                  marginLeft: mi > 0 ? 4 : 0,
+                  flexShrink: 0,
+                }}>
+                  {meld.tiles.map((tile, ti) => (
+                    ti === 0
+                      ? <RotatedTile key={ti} tile={tile} isMobile={isMobile} />
+                      : <TileButton key={ti} tile={tile} size="normal" />
+                  ))}
+                </div>
               ))}
             </div>
-          ))}
-        </div>
+          );
+        })()}
       </div>
 
       {/* Answer input */}
