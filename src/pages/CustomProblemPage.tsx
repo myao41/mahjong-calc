@@ -76,7 +76,7 @@ export function CustomProblemPage() {
         nextLabel="一覧に戻る"
         title={view.problem.name}
         onAnswered={(user) => {
-          recordQuizAnswer(question, user, 'custom', view.problem.id);
+          recordQuizAnswer(question, user, 'custom', undefined, view.problem.id);
         }}
       />
     );

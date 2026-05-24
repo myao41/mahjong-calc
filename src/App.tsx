@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { QuizPage } from './pages/QuizPage';
 import { FuRulePage } from './pages/FuRulePage';
 import { ScoreRulePage } from './pages/ScoreRulePage';
@@ -18,7 +18,22 @@ const TABS: { key: Page; label: string }[] = [
 
 export default function App() {
   const [page, setPage] = useState<Page>('quiz');
+  const [weaknessMode, setWeaknessMode] = useState(false);
   const { isMobile } = useViewport();
+
+  const handleStartWeakness = useCallback(() => {
+    setWeaknessMode(true);
+    setPage('quiz');
+  }, []);
+
+  const handleExitWeakness = useCallback(() => {
+    setWeaknessMode(false);
+  }, []);
+
+  const handlePageChange = useCallback((p: Page) => {
+    if (p !== 'quiz') setWeaknessMode(false);
+    setPage(p);
+  }, []);
 
   return (
     <div style={{
@@ -44,7 +59,7 @@ export default function App() {
         {TABS.map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setPage(tab.key)}
+            onClick={() => handlePageChange(tab.key)}
             style={{
               flex: 1,
               padding: isMobile ? '8px 2px' : '10px 4px',
@@ -63,9 +78,14 @@ export default function App() {
         ))}
       </nav>
 
-      {page === 'quiz' && <QuizPage />}
+      {page === 'quiz' && (
+        <QuizPage
+          weaknessMode={weaknessMode}
+          onExitWeakness={handleExitWeakness}
+        />
+      )}
       {page === 'custom' && <CustomProblemPage />}
-      {page === 'log' && <LearningLogPage />}
+      {page === 'log' && <LearningLogPage onStartWeakness={handleStartWeakness} />}
       {page === 'fu' && <FuRulePage />}
       {page === 'score' && <ScoreRulePage />}
     </div>

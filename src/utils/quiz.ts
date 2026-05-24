@@ -1,6 +1,7 @@
 import type { Tile, Mentsu, AgariCondition, Wind, QuizQuestion, Suit, Difficulty } from '../types';
 import { sortTiles } from './tiles';
 import { calculateScore } from './score';
+import type { CategoryCount, ErrorCategory } from './learningLog';
 
 function rand(max: number): number {
   return Math.floor(Math.random() * max);
@@ -799,4 +800,94 @@ export function generateQuiz(difficulty: Difficulty = 'normal'): QuizQuestion {
   };
   const answer = calculateScore(closedTiles, [], condition)!;
   return { closedTiles, openMelds: [], condition, answer };
+}
+
+// === 苦手特化出題 ===
+
+const CATEGORY_STRATEGY_MAP: Record<ErrorCategory, string[]> = {
+  missed_yaku: ['random', 'honitsu', 'ittsu', 'sanshoku'],
+  extra_yaku: ['random', 'honitsu', 'ittsu'],
+  pinfu_tsumo_fu: ['pinfu'],
+  pinfu_ron_fu: ['pinfu'],
+  chiitoitsu_fu: ['chiitoitsu'],
+  wait_fu: ['pinfu', 'random'],
+  yakuhai_koutsu_fu: ['honitsu', 'random'],
+  renfu_jantai_fu: ['honitsu', 'random'],
+  open_min30_fu: ['tanyao', 'honitsu', 'toitoi'],
+  kantsu_fu: ['kantsu_mix'],
+  open_yaku: ['honitsu', 'toitoi', 'tanyao'],
+  kazoe_yakuman: ['random'],
+  kiriage_mangan: ['random'],
+  score_lookup: ['random'],
+  other_fu: ['random'],
+  other: ['random'],
+};
+
+export function generateWeaknessQuiz(categories: CategoryCount[]): QuizQuestion {
+  const top = categories.slice(0, 3);
+  const totalWeight = top.reduce((s, c) => s + c.count, 0);
+
+  let strategy = 'random';
+  if (totalWeight > 0 && Math.random() < 0.7) {
+    let r = Math.random() * totalWeight;
+    for (const cat of top) {
+      r -= cat.count;
+      if (r <= 0) {
+        const strategies = CATEGORY_STRATEGY_MAP[cat.category] ?? ['random'];
+        strategy = pick(strategies);
+        break;
+      }
+    }
+  }
+
+  for (let retry = 0; retry < 100; retry++) {
+    const s = retry < 70 ? strategy : pickStrategy('normal');
+    const hand = generateHandByStrategy(s);
+    if (!hand) continue;
+
+    const agariType = pick(['tsumo', 'ron'] as const);
+    const seatWind = pick([1, 2, 3, 4] as Wind[]);
+    const roundWind = pick([1, 2] as Wind[]);
+
+    const condition: AgariCondition = {
+      agariType,
+      agariTile: hand.agariTile,
+      seatWind,
+      roundWind,
+      isRiichi: false, isDoubleRiichi: false, isIppatsu: false,
+      isRinshan: false, isChankan: false, isHaitei: false,
+      isHoutei: false, isTenhou: false, isChihou: false,
+      doraCount: 0, uraDoraCount: 0, redDoraCount: 0,
+    };
+
+    const isMenzen = hand.openMelds.every(m => !m.isOpen);
+    if (isMenzen) {
+      condition.isRiichi = Math.random() < 0.5;
+    }
+    if (!condition.isRiichi && isMenzen) {
+      condition.isRiichi = Math.random() < 0.3;
+    }
+
+    if (strategy === 'kantsu_mix') {
+      const hasKantsu = hand.openMelds.some(m => m.type === 'kantsu');
+      if (hasKantsu && agariType === 'tsumo' && Math.random() < 0.3) {
+        condition.isRinshan = true;
+      }
+      const doraRoll = Math.random();
+      if (doraRoll < 0.3) condition.doraCount = 1;
+      else if (doraRoll < 0.45) condition.doraCount = 2;
+    }
+
+    let answer = calculateScore(hand.closedTiles, hand.openMelds, condition);
+    if (!answer && isMenzen) {
+      condition.isRiichi = true;
+      answer = calculateScore(hand.closedTiles, hand.openMelds, condition);
+    }
+    if (!answer) continue;
+    if (answer.yaku.some(y => y.isYakuman)) continue;
+
+    return { closedTiles: hand.closedTiles, openMelds: hand.openMelds, condition, answer };
+  }
+
+  return generateQuiz('normal');
 }

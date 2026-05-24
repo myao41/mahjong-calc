@@ -1,4 +1,4 @@
-import type { Tile, Mentsu, AgariCondition, QuizQuestion, Yaku, FuDetail } from '../types';
+import type { Tile, Mentsu, AgariCondition, QuizQuestion, Yaku, FuDetail, Difficulty } from '../types';
 
 export type ErrorCategory =
   | 'missed_yaku'
@@ -53,7 +53,8 @@ export interface AnswerErrors {
 export interface AnswerRecord {
   id: string;
   timestamp: string;
-  source: 'quiz' | 'custom' | 'retry';
+  source: 'quiz' | 'custom' | 'retry' | 'weakness';
+  difficulty?: Difficulty;
   customProblemId?: string;
 
   question: {
@@ -123,18 +124,7 @@ export interface Stats {
 }
 
 export function getStats(): Stats {
-  const all = getAllRecords();
-  const total = all.length;
-  const correct = all.filter(r => r.isCorrect).length;
-  return {
-    total,
-    correct,
-    correctRate: total === 0 ? 0 : correct / total,
-    hanCorrect: all.filter(r => !r.errors.han).length,
-    fuCorrect: all.filter(r => !r.errors.fu).length,
-    scoreCorrect: all.filter(r => !r.errors.score).length,
-    mistakeCount: total - correct,
-  };
+  return computeStats(getAllRecords());
 }
 
 export function getMistakes(): AnswerRecord[] {
@@ -234,6 +224,7 @@ export function recordQuizAnswer(
   question: QuizQuestion,
   user: UserAnswer,
   source: AnswerRecord['source'],
+  difficulty?: Difficulty,
   customProblemId?: string,
 ): AnswerRecord {
   const { answer } = question;
@@ -273,6 +264,7 @@ export function recordQuizAnswer(
     id: generateId(),
     timestamp: new Date().toISOString(),
     source,
+    difficulty,
     customProblemId,
     question: {
       closedTiles: question.closedTiles,
@@ -291,4 +283,89 @@ export function recordQuizAnswer(
   saveAllRecords(all);
 
   return record;
+}
+
+// === 今日の成績 ===
+
+export function getTodayStats(): Stats {
+  const today = new Date().toDateString();
+  const records = getAllRecords().filter(r => new Date(r.timestamp).toDateString() === today);
+  return computeStats(records);
+}
+
+// === 週別推移 ===
+
+export interface WeeklyData {
+  weekLabel: string;
+  total: number;
+  correct: number;
+  rate: number;
+}
+
+function getMonday(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  d.setDate(diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+export function getWeeklyStats(numWeeks: number = 8): WeeklyData[] {
+  const all = getAllRecords();
+  const currentMonday = getMonday(new Date());
+  const weeks: WeeklyData[] = [];
+
+  for (let i = numWeeks - 1; i >= 0; i--) {
+    const weekStart = new Date(currentMonday);
+    weekStart.setDate(weekStart.getDate() - i * 7);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 7);
+
+    const records = all.filter(r => {
+      const t = new Date(r.timestamp);
+      return t >= weekStart && t < weekEnd;
+    });
+
+    const total = records.length;
+    const correct = records.filter(r => r.isCorrect).length;
+    const pad = (n: number) => String(n);
+    weeks.push({
+      weekLabel: `${pad(weekStart.getMonth() + 1)}/${pad(weekStart.getDate())}`,
+      total,
+      correct,
+      rate: total === 0 ? 0 : Math.round((correct / total) * 100),
+    });
+  }
+  return weeks;
+}
+
+// === 難易度別成績 ===
+
+export function getStatsByDifficulty(): Record<string, Stats> {
+  const all = getAllRecords();
+  const groups: Record<string, AnswerRecord[]> = {};
+  for (const r of all) {
+    const key = r.difficulty ?? 'unknown';
+    (groups[key] ??= []).push(r);
+  }
+  const result: Record<string, Stats> = {};
+  for (const [key, records] of Object.entries(groups)) {
+    result[key] = computeStats(records);
+  }
+  return result;
+}
+
+function computeStats(records: AnswerRecord[]): Stats {
+  const total = records.length;
+  const correct = records.filter(r => r.isCorrect).length;
+  return {
+    total,
+    correct,
+    correctRate: total === 0 ? 0 : correct / total,
+    hanCorrect: records.filter(r => !r.errors.han).length,
+    fuCorrect: records.filter(r => !r.errors.fu).length,
+    scoreCorrect: records.filter(r => !r.errors.score).length,
+    mistakeCount: total - correct,
+  };
 }
