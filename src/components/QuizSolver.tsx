@@ -13,6 +13,8 @@ function RotatedTile({ tile, isMobile }: { tile: Tile; isMobile: boolean }) {
   const tileW = isMobile ? 22 : 34;
   const tileH = isMobile ? 33 : 51;
   // 回転後の見た目: 横向きなので幅=tileH, 高さ=tileW
+  // tile-box の影が回転で左側に行くため、視覚的な下部位置が
+  // 縦向き牌より上に見える。marginBottom で 2px 下方向にずらして揃える。
   return (
     <div style={{
       width: tileH,
@@ -21,6 +23,7 @@ function RotatedTile({ tile, isMobile }: { tile: Tile; isMobile: boolean }) {
       alignItems: 'center',
       justifyContent: 'center',
       flexShrink: 0,
+      marginBottom: -2,
     }}>
       <div style={{ transform: 'rotate(-90deg)' }}>
         <TileButton tile={tile} size="normal" />
