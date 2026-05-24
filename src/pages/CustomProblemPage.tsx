@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import type { Tile, Mentsu, AgariCondition, QuizQuestion, ScoreResult } from '../types';
+import type { Tile, Mentsu, AgariCondition, AgariType, Wind, QuizQuestion, ScoreResult, Suit } from '../types';
 import { TilePalette } from '../components/TilePalette';
-import { MeldInput } from '../components/MeldInput';
-import { ConditionInput } from '../components/ConditionInput';
 import { HandDisplay } from '../components/HandDisplay';
+import { TileButton } from '../components/TileButton';
 import { QuizSolver } from '../components/QuizSolver';
 import { calculateScore } from '../utils/score';
 import { recordQuizAnswer } from '../utils/learningLog';
+import { sortTiles } from '../utils/tiles';
 import {
   type SavedProblem,
   loadProblems,
@@ -151,7 +151,6 @@ function ProblemCard({ problem, onSolve, onEdit, onDuplicate, onDelete }: {
   problem: SavedProblem;
   onSolve: () => void; onEdit: () => void; onDuplicate: () => void; onDelete: () => void;
 }) {
-  // Try to compute summary
   const answer = useMemo(() => {
     try {
       return calculateScore(problem.closedTiles, problem.openMelds, problem.condition);
@@ -230,25 +229,9 @@ function listBtnStyle(variant: 'primary' | 'secondary' | 'danger'): React.CSSPro
 // Editor view
 // =========================================================================
 
-const defaultConditionFields: Omit<AgariCondition, 'agariTile'> = {
-  agariType: 'ron',
-  seatWind: 1,
-  roundWind: 1,
-  isRiichi: false,
-  isDoubleRiichi: false,
-  isIppatsu: false,
-  isRinshan: false,
-  isChankan: false,
-  isHaitei: false,
-  isHoutei: false,
-  isTenhou: false,
-  isChihou: false,
-  doraCount: 0,
-  uraDoraCount: 0,
-  redDoraCount: 0,
-};
+type BuildMode = 'normal' | 'chi' | 'pon' | 'minkan' | 'ankan';
 
-const dummyTile: Tile = { suit: 'm', num: 1 };
+const WIND_NAMES = ['', '東', '南', '西', '北'];
 
 interface EditorProps {
   initial: SavedProblem | null;
@@ -259,21 +242,26 @@ interface EditorProps {
 
 function CustomProblemEditor({ initial, onCancel, onSaved, onSolve }: EditorProps) {
   const [name, setName] = useState(initial?.name ?? '');
-  const [closedTiles, setClosedTiles] = useState<Tile[]>(initial?.closedTiles ?? []);
-  const [openMelds, setOpenMelds] = useState<Mentsu[]>(initial?.openMelds ?? []);
-  const [conditionFields, setConditionFields] = useState<Omit<AgariCondition, 'agariTile'>>(
-    initial
-      ? (() => {
-          const { agariTile: _omit, ...rest } = initial.condition;
-          return rest;
-        })()
-      : defaultConditionFields
+  const [closedTiles, setClosedTiles] = useState<Tile[]>(
+    initial ? sortTiles(initial.closedTiles) : []
   );
-  const [agariTileIndex, setAgariTileIndex] = useState<number | null>(() => {
-    if (!initial) return null;
-    const at = initial.condition.agariTile;
-    return initial.closedTiles.findIndex(t => t.suit === at.suit && t.num === at.num);
-  });
+  const [openMelds, setOpenMelds] = useState<Mentsu[]>(initial?.openMelds ?? []);
+
+  // 簡素化された条件: ツモ/ロン、場風、自風、立直、ダブル立直、一発のみ
+  const [agariType, setAgariType] = useState<AgariType>(initial?.condition.agariType ?? 'ron');
+  const [roundWind, setRoundWind] = useState<Wind>(initial?.condition.roundWind ?? 1);
+  const [seatWind, setSeatWind] = useState<Wind>(initial?.condition.seatWind ?? 1);
+  const [isRiichi, setIsRiichi] = useState(initial?.condition.isRiichi ?? false);
+  const [isDoubleRiichi, setIsDoubleRiichi] = useState(initial?.condition.isDoubleRiichi ?? false);
+  const [isIppatsu, setIsIppatsu] = useState(initial?.condition.isIppatsu ?? false);
+
+  // アガリ牌は最後に追加した牌を自動指定。値ベースで保持。
+  const [agariTile, setAgariTileValue] = useState<Tile | null>(
+    initial ? initial.condition.agariTile : null
+  );
+
+  const [buildMode, setBuildMode] = useState<BuildMode>('normal');
+  const [chiOptions, setChiOptions] = useState<{ suit: Suit; starts: number[] } | null>(null);
   const [calcResult, setCalcResult] = useState<ScoreResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -292,49 +280,139 @@ function CustomProblemEditor({ initial, onCancel, onSaved, onSolve }: EditorProp
 
   const totalTiles = closedTiles.length + openMelds.reduce((s, m) => s + m.tiles.length, 0);
 
-  const handleAddTile = (tile: Tile) => {
-    if (totalTiles >= 14) return;
-    setClosedTiles(prev => [...prev, tile]);
+  const agariTileIndex = useMemo(() => {
+    if (!agariTile) return null;
+    let lastIdx = -1;
+    for (let i = 0; i < closedTiles.length; i++) {
+      if (closedTiles[i].suit === agariTile.suit && closedTiles[i].num === agariTile.num) {
+        lastIdx = i;
+      }
+    }
+    return lastIdx < 0 ? null : lastIdx;
+  }, [closedTiles, agariTile]);
+
+  const resetCalcState = () => {
     setError(null);
     setCalcResult(null);
+  };
+
+  const addTileToHand = (tile: Tile) => {
+    if (totalTiles >= 14) return;
+    setClosedTiles(prev => sortTiles([...prev, tile]));
+    setAgariTileValue(tile);
+    resetCalcState();
   };
 
   const handleRemoveTile = (idx: number) => {
+    const removed = closedTiles[idx];
     setClosedTiles(prev => prev.filter((_, i) => i !== idx));
-    if (agariTileIndex === idx) setAgariTileIndex(null);
-    else if (agariTileIndex !== null && agariTileIndex > idx) {
-      setAgariTileIndex(agariTileIndex - 1);
+    if (agariTile && removed && agariTile.suit === removed.suit && agariTile.num === removed.num) {
+      const remaining = closedTiles.filter((_, i) => i !== idx);
+      const stillHas = remaining.some(t => t.suit === agariTile.suit && t.num === agariTile.num);
+      if (!stillHas) setAgariTileValue(null);
     }
-    setError(null);
-    setCalcResult(null);
+    resetCalcState();
   };
 
-  const handleAddMeld = (meld: Mentsu) => {
+  const handleSetAgariFromIdx = (idx: number) => {
+    setAgariTileValue(closedTiles[idx] ?? null);
+  };
+
+  const addMeld = (meld: Mentsu) => {
     if (totalTiles + meld.tiles.length > 14) return;
     setOpenMelds(prev => [...prev, meld]);
-    setError(null);
-    setCalcResult(null);
+    setBuildMode('normal');
+    setChiOptions(null);
+    resetCalcState();
   };
 
   const handleRemoveMeld = (idx: number) => {
     setOpenMelds(prev => prev.filter((_, i) => i !== idx));
-    setError(null);
-    setCalcResult(null);
+    resetCalcState();
+  };
+
+  const handlePaletteClick = (tile: Tile) => {
+    if (buildMode === 'normal') {
+      addTileToHand(tile);
+      return;
+    }
+    if (buildMode === 'chi') {
+      const starts: number[] = [];
+      for (const start of [tile.num - 2, tile.num - 1, tile.num]) {
+        if (start < 1 || start + 2 > 9) continue;
+        let canUse = true;
+        for (let n = start; n <= start + 2; n++) {
+          const u = tileCounts.get(`${tile.suit}${n}`) ?? 0;
+          if (u >= 4) { canUse = false; break; }
+        }
+        if (canUse) starts.push(start);
+      }
+      if (starts.length === 0) return;
+      if (starts.length === 1) {
+        const s = starts[0];
+        const tiles: Tile[] = [s, s + 1, s + 2].map(n => ({ suit: tile.suit, num: n }));
+        addMeld({ type: 'shuntsu', tiles, isOpen: true });
+      } else {
+        setChiOptions({ suit: tile.suit, starts });
+      }
+      return;
+    }
+    if (buildMode === 'pon') {
+      addMeld({ type: 'koutsu', tiles: [tile, tile, tile], isOpen: true });
+      return;
+    }
+    if (buildMode === 'minkan') {
+      addMeld({ type: 'kantsu', tiles: [tile, tile, tile, tile], isOpen: true });
+      return;
+    }
+    if (buildMode === 'ankan') {
+      addMeld({ type: 'kantsu', tiles: [tile, tile, tile, tile], isOpen: false });
+      return;
+    }
+  };
+
+  const paletteDisabled = (tile: Tile): boolean => {
+    const used = tileCounts.get(`${tile.suit}${tile.num}`) ?? 0;
+    if (buildMode === 'normal') {
+      return used >= 4 || totalTiles >= 14;
+    }
+    if (buildMode === 'chi') {
+      if (tile.suit === 'z') return true;
+      for (const start of [tile.num - 2, tile.num - 1, tile.num]) {
+        if (start < 1 || start + 2 > 9) continue;
+        let canUse = true;
+        for (let n = start; n <= start + 2; n++) {
+          const u = tileCounts.get(`${tile.suit}${n}`) ?? 0;
+          if (u >= 4) { canUse = false; break; }
+        }
+        if (canUse) return totalTiles + 3 > 14;
+      }
+      return true;
+    }
+    if (buildMode === 'pon') {
+      return used + 3 > 4 || totalTiles + 3 > 14;
+    }
+    if (buildMode === 'minkan' || buildMode === 'ankan') {
+      return used + 4 > 4 || totalTiles + 4 > 14;
+    }
+    return false;
   };
 
   const buildCondition = (): AgariCondition | null => {
-    if (agariTileIndex === null) return null;
-    const agariTile = closedTiles[agariTileIndex];
     if (!agariTile) return null;
-    return { ...conditionFields, agariTile };
+    return {
+      agariType, agariTile, roundWind, seatWind,
+      isRiichi, isDoubleRiichi, isIppatsu,
+      isRinshan: false, isChankan: false,
+      isHaitei: false, isHoutei: false,
+      isTenhou: false, isChihou: false,
+      doraCount: 0, uraDoraCount: 0, redDoraCount: 0,
+    };
   };
 
   const validate = (): { ok: false; error: string } | { ok: true; condition: AgariCondition } => {
     if (totalTiles !== 14) {
       return { ok: false, error: `手牌が14枚揃っていません (現在: ${totalTiles}枚)` };
-    }
-    if (agariTileIndex === null) {
-      return { ok: false, error: '門前手牌から「アガリ牌」を1つ指定してください' };
     }
     const condition = buildCondition();
     if (!condition) {
@@ -385,11 +463,17 @@ function CustomProblemEditor({ initial, onCancel, onSaved, onSolve }: EditorProp
       condition: v.condition,
     };
     saveProblem(saved);
-    if (alsoSolve) {
-      onSolve(saved);
-    } else {
-      onSaved();
-    }
+    if (alsoSolve) onSolve(saved);
+    else onSaved();
+  };
+
+  const isDealer = seatWind === 1;
+  const buildModeLabel: Record<BuildMode, string> = {
+    normal: '',
+    chi: 'チー（順子）の起点をパレットから選択',
+    pon: 'ポン（刻子）の牌をパレットから選択',
+    minkan: '明槓の牌をパレットから選択',
+    ankan: '暗槓の牌をパレットから選択',
   };
 
   return (
@@ -414,14 +498,6 @@ function CustomProblemEditor({ initial, onCancel, onSaved, onSolve }: EditorProp
         />
       </div>
 
-      {/* Tile palette */}
-      <div style={{ background: '#fff', padding: 16, borderRadius: 8, border: '1px solid #e0e0e0', marginBottom: 14 }}>
-        <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 8 }}>
-          牌パレット（クリックで手牌に追加）
-        </div>
-        <TilePalette onSelect={handleAddTile} tileCounts={tileCounts} />
-      </div>
-
       {/* Hand display */}
       <div style={{ background: '#fff', padding: 16, borderRadius: 8, border: '1px solid #e0e0e0', marginBottom: 14 }}>
         <HandDisplay
@@ -429,51 +505,176 @@ function CustomProblemEditor({ initial, onCancel, onSaved, onSolve }: EditorProp
           openMelds={openMelds}
           agariTileIndex={agariTileIndex}
           onRemoveTile={handleRemoveTile}
-          onSetAgariTile={setAgariTileIndex}
+          onSetAgariTile={handleSetAgariFromIdx}
           onRemoveMeld={handleRemoveMeld}
         />
       </div>
 
-      {/* Meld input */}
+      {/* 副露ビルドモードボタン */}
       <div style={{ background: '#fff', padding: 16, borderRadius: 8, border: '1px solid #e0e0e0', marginBottom: 14 }}>
-        <MeldInput
-          onAddMeld={handleAddMeld}
+        <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 8 }}>
+          副露追加 <span style={{ fontSize: 12, color: '#7f8c8d', fontWeight: 'normal' }}>
+            (タイプを選択→パレットから牌を選択)
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {(['chi', 'pon', 'minkan', 'ankan'] as const).map(m => (
+            <button
+              key={m}
+              onClick={() => { setBuildMode(buildMode === m ? 'normal' : m); setChiOptions(null); }}
+              style={meldBtnStyle(buildMode === m)}
+            >
+              {m === 'chi' ? 'チー' : m === 'pon' ? 'ポン' : m === 'minkan' ? '明槓' : '暗槓'}
+            </button>
+          ))}
+          {buildMode !== 'normal' && (
+            <button
+              onClick={() => { setBuildMode('normal'); setChiOptions(null); }}
+              style={{
+                padding: '8px 14px', fontSize: 13,
+                background: '#ecf0f1', color: '#34495e',
+                border: '1px solid #bdc3c7', borderRadius: 4, cursor: 'pointer',
+              }}
+            >
+              キャンセル
+            </button>
+          )}
+        </div>
+        {buildMode !== 'normal' && !chiOptions && (
+          <div style={{
+            marginTop: 8, padding: '6px 10px',
+            background: '#fff8e1', borderRadius: 4,
+            fontSize: 12, color: '#5d4037',
+          }}>
+            💡 {buildModeLabel[buildMode]}
+          </div>
+        )}
+        {chiOptions && (
+          <div style={{ marginTop: 10, padding: 10, background: '#e3f2fd', borderRadius: 4 }}>
+            <div style={{ fontSize: 12, marginBottom: 6, color: '#1565c0' }}>順子の組み合わせを選択:</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {chiOptions.starts.map(start => {
+                const tiles: Tile[] = [start, start + 1, start + 2].map(n => ({ suit: chiOptions.suit, num: n }));
+                return (
+                  <button
+                    key={start}
+                    onClick={() => addMeld({ type: 'shuntsu', tiles, isOpen: true })}
+                    style={{
+                      display: 'flex', gap: 0, padding: 4,
+                      background: '#fff', border: '1px solid #90caf9',
+                      borderRadius: 4, cursor: 'pointer', alignItems: 'center',
+                    }}
+                  >
+                    {tiles.map((t, i) => <TileButton key={i} tile={t} size="small" />)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 牌パレット */}
+      <div style={{ background: '#fff', padding: 16, borderRadius: 8, border: '1px solid #e0e0e0', marginBottom: 14 }}>
+        <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 8 }}>
+          {buildMode === 'normal' ? '牌パレット（クリックで手牌に追加）' : '牌パレット（副露用に1枚選択）'}
+        </div>
+        <TilePalette
+          onSelect={handlePaletteClick}
           tileCounts={tileCounts}
+          size="normal"
+          isDisabled={paletteDisabled}
         />
       </div>
 
-      {/* Condition */}
-      <ConditionInput
-        condition={{ ...conditionFields, agariTile: dummyTile }}
-        onChange={(c) => {
-          const { agariTile: _omit, ...rest } = c;
-          setConditionFields(rest);
-          setError(null);
-          setCalcResult(null);
-        }}
-      />
+      {/* 和了条件 */}
+      <div style={{ background: '#fff', padding: 16, borderRadius: 8, border: '1px solid #e0e0e0', marginBottom: 14 }}>
+        <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 10 }}>和了条件</div>
+
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 13, color: '#7f8c8d', marginBottom: 4 }}>アガリ方</div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {(['ron', 'tsumo'] as const).map(at => (
+              <button
+                key={at}
+                onClick={() => { setAgariType(at); resetCalcState(); }}
+                style={toggleBtnStyle(agariType === at)}
+              >
+                {at === 'tsumo' ? 'ツモ' : 'ロン'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 13, color: '#7f8c8d', marginBottom: 4 }}>場風</div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {([1, 2, 3, 4] as Wind[]).map(w => (
+              <button
+                key={w}
+                onClick={() => { setRoundWind(w); resetCalcState(); }}
+                style={toggleBtnStyle(roundWind === w)}
+              >
+                {WIND_NAMES[w]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 13, color: '#7f8c8d', marginBottom: 4 }}>
+            自風 {isDealer && <span style={{ color: '#e74c3c', fontWeight: 'bold' }}>（親）</span>}
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {([1, 2, 3, 4] as Wind[]).map(w => (
+              <button
+                key={w}
+                onClick={() => { setSeatWind(w); resetCalcState(); }}
+                style={toggleBtnStyle(seatWind === w)}
+              >
+                {WIND_NAMES[w]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+          <label style={checkboxLabelStyle}>
+            <input type="checkbox" checked={isRiichi} onChange={e => {
+              setIsRiichi(e.target.checked);
+              if (e.target.checked) setIsDoubleRiichi(false);
+              else setIsIppatsu(false);
+              resetCalcState();
+            }} /> 立直
+          </label>
+          <label style={checkboxLabelStyle}>
+            <input type="checkbox" checked={isDoubleRiichi} onChange={e => {
+              setIsDoubleRiichi(e.target.checked);
+              if (e.target.checked) setIsRiichi(false);
+              else setIsIppatsu(false);
+              resetCalcState();
+            }} /> ダブル立直
+          </label>
+          <label style={{ ...checkboxLabelStyle, opacity: (isRiichi || isDoubleRiichi) ? 1 : 0.4 }}>
+            <input
+              type="checkbox"
+              checked={isIppatsu}
+              disabled={!isRiichi && !isDoubleRiichi}
+              onChange={e => { setIsIppatsu(e.target.checked); resetCalcState(); }}
+            /> 一発
+          </label>
+        </div>
+      </div>
 
       {/* Buttons */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-        <button onClick={handleCalculate} style={{
-          flex: '1 1 30%', padding: '12px', fontSize: 15, fontWeight: 'bold',
-          background: '#95a5a6', color: '#fff', border: 'none', borderRadius: 6,
-          cursor: 'pointer',
-        }}>
+        <button onClick={handleCalculate} style={actionBtnStyle('#95a5a6')}>
           🔍 計算してみる
         </button>
-        <button onClick={() => handleSave(false)} style={{
-          flex: '1 1 30%', padding: '12px', fontSize: 15, fontWeight: 'bold',
-          background: '#27ae60', color: '#fff', border: 'none', borderRadius: 6,
-          cursor: 'pointer',
-        }}>
+        <button onClick={() => handleSave(false)} style={actionBtnStyle('#27ae60')}>
           💾 保存
         </button>
-        <button onClick={() => handleSave(true)} style={{
-          flex: '1 1 30%', padding: '12px', fontSize: 15, fontWeight: 'bold',
-          background: '#3498db', color: '#fff', border: 'none', borderRadius: 6,
-          cursor: 'pointer',
-        }}>
+        <button onClick={() => handleSave(true)} style={actionBtnStyle('#3498db')}>
           💾 保存して解く
         </button>
       </div>
@@ -515,3 +716,41 @@ function CustomProblemEditor({ initial, onCancel, onSaved, onSolve }: EditorProp
     </div>
   );
 }
+
+// =========================================================================
+// Editor styling helpers
+// =========================================================================
+
+function toggleBtnStyle(active: boolean): React.CSSProperties {
+  return {
+    padding: '8px 16px', fontSize: 14, fontWeight: 'bold',
+    border: active ? '2px solid #3498db' : '1px solid #bdc3c7',
+    background: active ? '#3498db' : '#fff',
+    color: active ? '#fff' : '#34495e',
+    borderRadius: 4, cursor: 'pointer',
+    minWidth: 44,
+  };
+}
+
+function meldBtnStyle(active: boolean): React.CSSProperties {
+  return {
+    padding: '8px 16px', fontSize: 14, fontWeight: 'bold',
+    border: active ? '2px solid #e67e22' : '1px solid #bdc3c7',
+    background: active ? '#e67e22' : '#fff',
+    color: active ? '#fff' : '#34495e',
+    borderRadius: 4, cursor: 'pointer',
+  };
+}
+
+function actionBtnStyle(bg: string): React.CSSProperties {
+  return {
+    flex: '1 1 30%', padding: '12px', fontSize: 15, fontWeight: 'bold',
+    background: bg, color: '#fff', border: 'none', borderRadius: 6,
+    cursor: 'pointer',
+  };
+}
+
+const checkboxLabelStyle: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 4,
+  fontSize: 13, cursor: 'pointer',
+};

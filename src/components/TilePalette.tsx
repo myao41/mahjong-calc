@@ -4,13 +4,16 @@ import { TileButton } from './TileButton';
 interface Props {
   onSelect: (tile: Tile) => void;
   tileCounts: Map<string, number>;
+  size?: 'small' | 'normal';
+  /** 無効化する条件をカスタマイズ。trueの牌は disabled になる */
+  isDisabled?: (tile: Tile) => boolean;
 }
 
 function tileKey(tile: Tile): string {
   return `${tile.suit}${tile.num}`;
 }
 
-export function TilePalette({ onSelect, tileCounts }: Props) {
+export function TilePalette({ onSelect, tileCounts, size = 'normal', isDisabled }: Props) {
   const suits: { suit: Suit; label: string; count: number }[] = [
     { suit: 'm', label: '萬子', count: 9 },
     { suit: 'p', label: '筒子', count: 9 },
@@ -28,13 +31,14 @@ export function TilePalette({ onSelect, tileCounts }: Props) {
               const tile: Tile = { suit, num: i + 1 };
               const key = tileKey(tile);
               const used = tileCounts.get(key) || 0;
+              const disabled = isDisabled ? isDisabled(tile) : used >= 4;
               return (
                 <TileButton
                   key={key}
                   tile={tile}
                   onClick={onSelect}
-                  disabled={used >= 4}
-                  size="small"
+                  disabled={disabled}
+                  size={size}
                 />
               );
             })}
