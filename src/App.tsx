@@ -23,7 +23,7 @@ export default function App() {
   return (
     <div style={{
       maxWidth: 640, margin: '0 auto',
-      padding: isMobile ? '12px 8px' : '20px 24px',
+      padding: isMobile ? '12px 4px' : '20px 16px',
       fontFamily: '"Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif',
     }}>
       <h1 style={{

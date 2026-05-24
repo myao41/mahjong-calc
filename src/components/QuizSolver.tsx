@@ -11,8 +11,8 @@ import type { Tile } from '../types';
 /** 鳴いた牌の最左を90度横向きに表示するヘルパー */
 function RotatedTile({ tile, isMobile }: { tile: Tile; isMobile: boolean }) {
   // 新スプライト (3:4 比率) に合わせる
-  const tileW = isMobile ? 22 : 32;
-  const tileH = isMobile ? 30 : 43;
+  const tileW = isMobile ? 24 : 38;
+  const tileH = isMobile ? 32 : 51;
   return (
     <div style={{
       width: tileH,

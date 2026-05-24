@@ -39,7 +39,7 @@ export function TileButton({ tile, onClick, selected, size = 'normal', disabled 
   // 新スプライトのアスペクト比 71.11:96 ≈ 0.74:1
   // 縦長気味なので幅基準で算出
   // 新スプライトのアスペクト比 (71.11:96 ≈ 3:4) に合わせて再計算
-  const width = isSmall ? (isMobile ? 18 : 24) : (isMobile ? 22 : 32);
+  const width = isSmall ? (isMobile ? 18 : 26) : (isMobile ? 24 : 38);
   const height = Math.round(width * NATIVE_TILE_H / NATIVE_TILE_W);
 
   const { col, row } = spriteCoord(tile);
