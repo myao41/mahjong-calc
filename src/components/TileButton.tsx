@@ -1,5 +1,6 @@
 import type { Tile } from '../types';
 import tilesSprite from '../assets/tiles.png';
+import { useViewport } from '../utils/useViewport';
 
 interface Props {
   tile: Tile;
@@ -30,9 +31,10 @@ function spriteCoord(tile: Tile): { col: number; row: number } {
 }
 
 export function TileButton({ tile, onClick, selected, size = 'normal', disabled }: Props) {
+  const { isMobile } = useViewport();
   const isSmall = size === 'small';
-  const width = isSmall ? 28 : 34;
-  const height = isSmall ? 42 : 51;
+  const width = isSmall ? (isMobile ? 20 : 28) : (isMobile ? 22 : 34);
+  const height = isSmall ? (isMobile ? 30 : 42) : (isMobile ? 33 : 51);
 
   const { col, row } = spriteCoord(tile);
   const scale = width / NATIVE_TILE_W;

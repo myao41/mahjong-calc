@@ -5,6 +5,7 @@ import { TileButton } from './TileButton';
 import { DetailScoreTable } from './DetailScoreTable';
 import { generateHint } from '../utils/hint';
 import type { UserAnswer } from '../utils/learningLog';
+import { useViewport } from '../utils/useViewport';
 
 type Phase = 'answering' | 'correct' | 'wrong';
 
@@ -60,6 +61,7 @@ const inputStyle: React.CSSProperties = {
 };
 
 export function QuizSolver({ question, onNext, nextLabel = '次の問題', title, onAnswered, onSkip }: Props) {
+  const { isMobile } = useViewport();
   const [phase, setPhase] = useState<Phase>('answering');
   const [inputHan, setInputHan] = useState('1');
   const [inputFu, setInputFu] = useState('20');
@@ -119,7 +121,11 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
 
       {/* Conditions above hand */}
       <div style={{
-        display: 'flex', gap: 14, marginBottom: 10, fontSize: 15, color: '#2c3e50',
+        display: 'flex',
+        gap: isMobile ? 8 : 14,
+        marginBottom: 10,
+        fontSize: isMobile ? 13 : 15,
+        color: '#2c3e50',
         flexWrap: 'wrap', alignItems: 'center',
       }}>
         <span>場風: <b>{windName(condition.roundWind)}</b></span>
@@ -145,11 +151,17 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
 
       {/* Hand display */}
       <div style={{
-        background: '#fff', borderRadius: 8, padding: '16px 16px', marginBottom: 14,
+        background: '#fff', borderRadius: 8,
+        padding: isMobile ? '10px 6px' : '16px 16px',
+        marginBottom: 14,
         border: '1px solid #e0e0e0',
       }}>
-        <div style={{ fontSize: 15, color: '#7f8c8d', marginBottom: 6 }}>手牌</div>
-        <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 4, alignItems: 'flex-end', justifyContent: 'center' }}>
+        <div style={{ fontSize: isMobile ? 13 : 15, color: '#7f8c8d', marginBottom: 6 }}>手牌</div>
+        <div style={{
+          display: 'flex', flexWrap: 'nowrap',
+          gap: isMobile ? 2 : 4,
+          alignItems: 'flex-end', justifyContent: 'center',
+        }}>
           {question.closedTiles.map((tile, i) => {
             const isLastMatch = (() => {
               let lastIdx = -1;
@@ -194,17 +206,17 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
           })}
 
           {question.openMelds.length > 0 && (
-            <div style={{ width: 10, flexShrink: 0 }} />
+            <div style={{ width: isMobile ? 6 : 10, flexShrink: 0 }} />
           )}
 
           {question.openMelds.map((meld, mi) => (
             <div key={`meld-${mi}`} style={{
               display: 'flex', gap: 1,
-              padding: '5px 6px',
+              padding: isMobile ? '3px 4px' : '5px 6px',
               border: '1px dashed #bdc3c7',
               borderRadius: 8,
               marginLeft: mi > 0 ? 4 : 0,
-              marginBottom: -6,
+              marginBottom: isMobile ? -4 : -6,
             }}>
               {meld.tiles.map((tile, ti) => (
                 <TileButton key={ti} tile={tile} size="normal" />
@@ -217,7 +229,9 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
       {/* Answer input */}
       {phase === 'answering' && (
         <div style={{
-          background: '#fff', borderRadius: 8, padding: 16, marginBottom: 14,
+          background: '#fff', borderRadius: 8,
+          padding: isMobile ? 12 : 16,
+          marginBottom: 14,
           border: '1px solid #e0e0e0',
         }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -308,7 +322,9 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
       {/* Result */}
       {phase !== 'answering' && (
         <div style={{
-          borderRadius: 8, padding: 20, marginBottom: 14,
+          borderRadius: 8,
+          padding: isMobile ? 14 : 20,
+          marginBottom: 14,
           background: phase === 'correct' ? '#f0fff4' : '#fdf2f2',
           border: `1px solid ${phase === 'correct' ? '#27ae60' : '#e74c3c'}`,
         }}>
