@@ -19,11 +19,13 @@ export function HandDisplay({
   onRemoveMeld,
 }: Props) {
   const totalTiles = closedTiles.length + openMelds.reduce((sum, m) => sum + m.tiles.length, 0);
+  const numKans = openMelds.filter(m => m.type === 'kantsu').length;
+  const expectedTotal = 14 + numKans;
 
   return (
     <div style={{ marginBottom: 16 }}>
       <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 4 }}>
-        手牌 ({totalTiles}/14)
+        手牌 ({totalTiles}/{expectedTotal})
       </div>
 
       <div style={{ marginBottom: 8 }}>
@@ -87,7 +89,9 @@ export function HandDisplay({
                   <TileButton key={ti} tile={tile} onClick={() => onRemoveMeld(mi)} size="small" />
                 ))}
                 <div style={{ fontSize: 10, color: '#7f8c8d', alignSelf: 'center', marginLeft: 2 }}>
-                  {meld.type === 'shuntsu' ? 'チー' : meld.type === 'koutsu' ? 'ポン' : 'カン'}
+                  {meld.type === 'shuntsu' ? 'チー'
+                    : meld.type === 'koutsu' ? 'ポン'
+                    : meld.isOpen ? '明槓' : '暗槓'}
                 </div>
               </div>
             ))}

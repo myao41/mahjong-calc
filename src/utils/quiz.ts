@@ -1,4 +1,4 @@
-import type { Tile, Mentsu, AgariCondition, Wind, QuizQuestion, Suit } from '../types';
+import type { Tile, Mentsu, AgariCondition, Wind, QuizQuestion, Suit, Difficulty } from '../types';
 import { sortTiles } from './tiles';
 import { calculateScore } from './score';
 
@@ -65,6 +65,20 @@ function tryMakeKoutsu(pool: TileCount, allowHonors: boolean, suit?: Suit): Ment
   return null;
 }
 
+function tryMakeKantsu(pool: TileCount, allowHonors: boolean, suit?: Suit): Mentsu | null {
+  for (let attempt = 0; attempt < 15; attempt++) {
+    const s = suit || (allowHonors ? randomSuit() : randomNumberSuit());
+    const maxNum = s === 'z' ? 7 : 9;
+    const num = rand(maxNum) + 1;
+    const tile: Tile = { suit: s, num };
+    if (canUse(pool, tile, 4)) {
+      useTile(pool, tile, 4);
+      return { type: 'kantsu', tiles: [tile, tile, tile, tile], isOpen: false };
+    }
+  }
+  return null;
+}
+
 function tryMakeJantai(pool: TileCount, suitFilter?: Suit[]): Tile | null {
   for (let attempt = 0; attempt < 20; attempt++) {
     const suit = suitFilter ? pick(suitFilter) : randomSuit();
@@ -99,6 +113,34 @@ function finishHand(allMentsu: Mentsu[], jantaiTile: Tile, numOpen: number): Han
   for (const m of closedMentsu) closedTiles.push(...m.tiles);
   closedTiles.push(jantaiTile, jantaiTile);
   const agariTile = pickAgariTile(closedMentsu, jantaiTile);
+  return { closedTiles: sortTiles(closedTiles), openMelds, agariTile };
+}
+
+function finishHandAdvanced(
+  allMentsu: Mentsu[],
+  jantaiTile: Tile,
+  openIndices: number[],
+): HandResult {
+  const openSet = new Set(openIndices);
+  const closedTiles: Tile[] = [];
+  const openMelds: Mentsu[] = [];
+  const closedMentsuForAgari: Mentsu[] = [];
+
+  for (let i = 0; i < allMentsu.length; i++) {
+    const m = allMentsu[i];
+    const isOpen = openSet.has(i);
+    if (m.type === 'kantsu') {
+      openMelds.push({ ...m, isOpen });
+    } else if (isOpen) {
+      openMelds.push({ ...m, isOpen: true });
+    } else {
+      closedTiles.push(...m.tiles);
+      closedMentsuForAgari.push(m);
+    }
+  }
+
+  closedTiles.push(jantaiTile, jantaiTile);
+  const agariTile = pickAgariTile(closedMentsuForAgari, jantaiTile);
   return { closedTiles: sortTiles(closedTiles), openMelds, agariTile };
 }
 
@@ -337,15 +379,301 @@ function generateToitoiHand(): HandResult | null {
   return finishHand(allMentsu, jantaiTile, pick([1, 1, 2, 2]));
 }
 
-function pickStrategy(): string {
+function generateChinitsuHand(): HandResult | null {
+  const pool: TileCount = new Map();
+  const suit = randomNumberSuit();
+  const allMentsu: Mentsu[] = [];
+
+  for (let i = 0; i < 4; i++) {
+    let m: Mentsu | null = null;
+    if (Math.random() < 0.6) {
+      m = tryMakeShuntsu(pool, suit);
+      if (!m) m = tryMakeKoutsu(pool, false, suit);
+    } else {
+      m = tryMakeKoutsu(pool, false, suit);
+      if (!m) m = tryMakeShuntsu(pool, suit);
+    }
+    if (!m) return null;
+    allMentsu.push(m);
+  }
+
+  const jantaiTile = tryMakeJantai(pool, [suit]);
+  if (!jantaiTile) return null;
+  return finishHand(allMentsu, jantaiTile, pick([0, 0, 1]));
+}
+
+function generateChantaHand(): HandResult | null {
+  const pool: TileCount = new Map();
+  const allMentsu: Mentsu[] = [];
+  let hasHonor = false;
+  let hasShuntsu = false;
+
+  for (let i = 0; i < 4; i++) {
+    const wantShuntsu = Math.random() < 0.5 || (!hasShuntsu && i === 3);
+
+    if (wantShuntsu) {
+      const suit = randomNumberSuit();
+      const startNum = pick([1, 7]);
+      const tiles: Tile[] = [
+        { suit, num: startNum },
+        { suit, num: startNum + 1 },
+        { suit, num: startNum + 2 },
+      ];
+      if (tiles.every(t => canUse(pool, t, 1))) {
+        tiles.forEach(t => useTile(pool, t, 1));
+        allMentsu.push({ type: 'shuntsu', tiles, isOpen: false });
+        hasShuntsu = true;
+        continue;
+      }
+    }
+
+    const needHonor = !hasHonor && i >= 2;
+    let made = false;
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const s: Suit = needHonor ? 'z' : (Math.random() < 0.4 ? 'z' : randomNumberSuit());
+      const num = s === 'z' ? rand(7) + 1 : pick([1, 9]);
+      const tile: Tile = { suit: s, num };
+      if (canUse(pool, tile, 3)) {
+        useTile(pool, tile, 3);
+        if (s === 'z') hasHonor = true;
+        allMentsu.push({ type: 'koutsu', tiles: [tile, tile, tile], isOpen: false });
+        made = true;
+        break;
+      }
+    }
+    if (!made) return null;
+  }
+
+  if (!hasShuntsu) return null;
+
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const s: Suit = (!hasHonor && Math.random() < 0.5) ? 'z' : (Math.random() < 0.3 ? 'z' : randomNumberSuit());
+    const num = s === 'z' ? rand(7) + 1 : pick([1, 9]);
+    const tile: Tile = { suit: s, num };
+    if (canUse(pool, tile, 2)) {
+      useTile(pool, tile, 2);
+      if (s === 'z') hasHonor = true;
+      if (!hasHonor) continue;
+      return finishHand(allMentsu, tile, pick([0, 0, 1]));
+    }
+  }
+  return null;
+}
+
+function generateJunchanHand(): HandResult | null {
+  const pool: TileCount = new Map();
+  const allMentsu: Mentsu[] = [];
+  let hasShuntsu = false;
+
+  for (let i = 0; i < 4; i++) {
+    const wantShuntsu = Math.random() < 0.6 || (!hasShuntsu && i === 3);
+
+    if (wantShuntsu) {
+      const suit = randomNumberSuit();
+      const startNum = pick([1, 7]);
+      const tiles: Tile[] = [
+        { suit, num: startNum },
+        { suit, num: startNum + 1 },
+        { suit, num: startNum + 2 },
+      ];
+      if (tiles.every(t => canUse(pool, t, 1))) {
+        tiles.forEach(t => useTile(pool, t, 1));
+        allMentsu.push({ type: 'shuntsu', tiles, isOpen: false });
+        hasShuntsu = true;
+        continue;
+      }
+    }
+
+    let made = false;
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const suit = randomNumberSuit();
+      const num = pick([1, 9]);
+      const tile: Tile = { suit, num };
+      if (canUse(pool, tile, 3)) {
+        useTile(pool, tile, 3);
+        allMentsu.push({ type: 'koutsu', tiles: [tile, tile, tile], isOpen: false });
+        made = true;
+        break;
+      }
+    }
+    if (!made) return null;
+  }
+
+  if (!hasShuntsu) return null;
+
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const suit = randomNumberSuit();
+    const num = pick([1, 9]);
+    const tile: Tile = { suit, num };
+    if (canUse(pool, tile, 2)) {
+      useTile(pool, tile, 2);
+      return finishHand(allMentsu, tile, pick([0, 0, 1]));
+    }
+  }
+  return null;
+}
+
+function generateSanshokuDokoHand(): HandResult | null {
+  const pool: TileCount = new Map();
+  const num = rand(9) + 1;
+  const suits: Suit[] = ['m', 'p', 's'];
+
+  const mentsu: Mentsu[] = [];
+  for (const s of suits) {
+    const tile: Tile = { suit: s, num };
+    if (!canUse(pool, tile, 3)) return null;
+    useTile(pool, tile, 3);
+    mentsu.push({ type: 'koutsu', tiles: [tile, tile, tile], isOpen: false });
+  }
+
+  const m4 = tryMakeShuntsu(pool) || tryMakeKoutsu(pool, true);
+  if (!m4) return null;
+  mentsu.push(m4);
+
+  const jantaiTile = tryMakeJantai(pool);
+  if (!jantaiTile) return null;
+
+  return finishHand(mentsu, jantaiTile, pick([0, 1, 1, 2]));
+}
+
+function generateShosangenHand(): HandResult | null {
+  const pool: TileCount = new Map();
+  const mentsu: Mentsu[] = [];
+
+  const sangenpai = [5, 6, 7];
+  const picked = [...sangenpai];
+  for (let i = picked.length - 1; i > 0; i--) {
+    const j = rand(i + 1);
+    [picked[i], picked[j]] = [picked[j], picked[i]];
+  }
+
+  for (let i = 0; i < 2; i++) {
+    const tile: Tile = { suit: 'z', num: picked[i] };
+    useTile(pool, tile, 3);
+    mentsu.push({ type: 'koutsu', tiles: [tile, tile, tile], isOpen: false });
+  }
+
+  const jantaiTile: Tile = { suit: 'z', num: picked[2] };
+  useTile(pool, jantaiTile, 2);
+
+  for (let i = 0; i < 2; i++) {
+    let m: Mentsu | null = null;
+    if (Math.random() < 0.5) {
+      m = tryMakeShuntsu(pool);
+      if (!m) m = tryMakeKoutsu(pool, true);
+    } else {
+      m = tryMakeKoutsu(pool, true);
+      if (!m) m = tryMakeShuntsu(pool);
+    }
+    if (!m) return null;
+    mentsu.push(m);
+  }
+
+  return finishHand(mentsu, jantaiTile, pick([0, 1, 1, 2]));
+}
+
+function generateSanankoHand(): HandResult | null {
+  const pool: TileCount = new Map();
+  const allMentsu: Mentsu[] = [];
+
+  for (let i = 0; i < 3; i++) {
+    const m = tryMakeKoutsu(pool, true);
+    if (!m) return null;
+    allMentsu.push(m);
+  }
+
+  const m4 = tryMakeShuntsu(pool) || tryMakeKoutsu(pool, true);
+  if (!m4) return null;
+  allMentsu.push(m4);
+
+  const jantaiTile = tryMakeJantai(pool);
+  if (!jantaiTile) return null;
+
+  if (m4.type === 'koutsu') {
+    return finishHand(allMentsu, jantaiTile, pick([1, 1, 2]));
+  }
+  return finishHand(allMentsu, jantaiTile, pick([0, 0, 1]));
+}
+
+function generateKantsuMixHand(): HandResult | null {
+  const pool: TileCount = new Map();
+  const allMentsu: Mentsu[] = [];
+  const numKantsu = pick([1, 1, 2]);
+
+  for (let i = 0; i < numKantsu; i++) {
+    const m = tryMakeKantsu(pool, true);
+    if (!m) return null;
+    allMentsu.push(m);
+  }
+
+  for (let i = numKantsu; i < 4; i++) {
+    const makeKoutsu = Math.random() < 0.25;
+    let m: Mentsu | null = null;
+    if (makeKoutsu) {
+      m = tryMakeKoutsu(pool, true);
+      if (!m) m = tryMakeShuntsu(pool);
+    } else {
+      m = tryMakeShuntsu(pool);
+      if (!m) m = tryMakeKoutsu(pool, true);
+    }
+    if (!m) return null;
+    allMentsu.push(m);
+  }
+
+  const jantaiTile = tryMakeJantai(pool);
+  if (!jantaiTile) return null;
+
+  const openIndices: number[] = [];
+
+  const allTriplets = allMentsu.every(m => m.type === 'koutsu' || m.type === 'kantsu');
+  if (allTriplets) {
+    const nonKantsuIdx = allMentsu.findIndex(m => m.type !== 'kantsu');
+    if (nonKantsuIdx >= 0) {
+      openIndices.push(nonKantsuIdx);
+    } else {
+      openIndices.push(0);
+    }
+  }
+
+  for (let i = 0; i < allMentsu.length; i++) {
+    if (openIndices.includes(i)) continue;
+    if (allMentsu[i].type === 'kantsu' && Math.random() < 0.4) {
+      openIndices.push(i);
+    } else if (allMentsu[i].type !== 'kantsu' && Math.random() < 0.25) {
+      openIndices.push(i);
+    }
+  }
+
+  return finishHandAdvanced(allMentsu, jantaiTile, openIndices);
+}
+
+function pickStrategy(difficulty: Difficulty): string {
   const r = Math.random();
-  if (r < 0.15) return 'tanyao';
-  if (r < 0.30) return 'pinfu';
-  if (r < 0.40) return 'ittsu';
+  if (difficulty === 'easy') {
+    if (r < 0.45) return 'pinfu';
+    if (r < 0.85) return 'tanyao';
+    return 'random';
+  }
+  if (difficulty === 'hard') {
+    if (r < 0.20) return 'kantsu_mix';
+    if (r < 0.32) return 'chinitsu';
+    if (r < 0.42) return 'chanta';
+    if (r < 0.52) return 'junchan';
+    if (r < 0.62) return 'sananko';
+    if (r < 0.70) return 'sanshoku_doko';
+    if (r < 0.78) return 'shosangen';
+    if (r < 0.86) return 'honitsu';
+    if (r < 0.93) return 'toitoi';
+    return 'random';
+  }
+  // normal
+  if (r < 0.13) return 'tanyao';
+  if (r < 0.26) return 'pinfu';
+  if (r < 0.38) return 'ittsu';
   if (r < 0.50) return 'sanshoku';
-  if (r < 0.60) return 'honitsu';
-  if (r < 0.70) return 'chiitoitsu';
-  if (r < 0.78) return 'toitoi';
+  if (r < 0.62) return 'honitsu';
+  if (r < 0.72) return 'chiitoitsu';
+  if (r < 0.82) return 'toitoi';
   return 'random';
 }
 
@@ -358,13 +686,20 @@ function generateHandByStrategy(strategy: string): HandResult | null {
     case 'honitsu': return generateHonitsuHand();
     case 'chiitoitsu': return generateChiitoitsuHand();
     case 'toitoi': return generateToitoiHand();
+    case 'chinitsu': return generateChinitsuHand();
+    case 'chanta': return generateChantaHand();
+    case 'junchan': return generateJunchanHand();
+    case 'sanshoku_doko': return generateSanshokuDokoHand();
+    case 'shosangen': return generateShosangenHand();
+    case 'sananko': return generateSanankoHand();
+    case 'kantsu_mix': return generateKantsuMixHand();
     default: return generateRandomHand();
   }
 }
 
-export function generateQuiz(): QuizQuestion {
+export function generateQuiz(difficulty: Difficulty = 'normal'): QuizQuestion {
   for (let retry = 0; retry < 100; retry++) {
-    const strategy = pickStrategy();
+    const strategy = pickStrategy(difficulty);
     const hand = generateHandByStrategy(strategy);
     if (!hand) continue;
 
@@ -391,9 +726,40 @@ export function generateQuiz(): QuizQuestion {
       redDoraCount: 0,
     };
 
-    const isMenzen = hand.openMelds.length === 0;
-    if (isMenzen) {
-      condition.isRiichi = Math.random() < 0.5;
+    const isMenzen = hand.openMelds.every(m => !m.isOpen);
+    if (difficulty === 'easy') {
+      if (hand.openMelds.some(m => m.isOpen)) continue;
+      condition.isRiichi = Math.random() < 0.3;
+    } else if (difficulty === 'hard') {
+      if (isMenzen) {
+        condition.isRiichi = Math.random() < 0.5;
+        if (condition.isRiichi && Math.random() < 0.3) {
+          condition.isIppatsu = true;
+        }
+      }
+      const doraRoll = Math.random();
+      if (doraRoll < 0.4) condition.doraCount = 1;
+      else if (doraRoll < 0.6) condition.doraCount = 2;
+      else if (doraRoll < 0.7) condition.doraCount = 3;
+      if (condition.isRiichi && condition.doraCount > 0 && Math.random() < 0.3) {
+        condition.uraDoraCount = pick([1, 1, 2]);
+      }
+      const hasKantsu = hand.openMelds.some(m => m.type === 'kantsu');
+      if (hasKantsu && agariType === 'tsumo' && Math.random() < 0.3) {
+        condition.isRinshan = true;
+      }
+      if (!condition.isRinshan && Math.random() < 0.08) {
+        if (agariType === 'tsumo') condition.isHaitei = true;
+        else condition.isHoutei = true;
+      }
+    } else {
+      if (isMenzen) {
+        condition.isRiichi = Math.random() < 0.5;
+      }
+    }
+
+    if (!condition.isRiichi && isMenzen && difficulty !== 'easy') {
+      condition.isRiichi = Math.random() < 0.3;
     }
 
     let answer = calculateScore(hand.closedTiles, hand.openMelds, condition);

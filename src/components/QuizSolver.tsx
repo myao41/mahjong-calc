@@ -161,14 +161,38 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
           background: '#3498db', color: '#fff', padding: '2px 10px',
           borderRadius: 3, fontWeight: 'bold', fontSize: 14,
         }}>立直</span>}
-        {!condition.isRiichi && question.openMelds.length === 0 && <span style={{
+        {condition.isIppatsu && <span style={{
+          background: '#8e44ad', color: '#fff', padding: '2px 10px',
+          borderRadius: 3, fontWeight: 'bold', fontSize: 14,
+        }}>一発</span>}
+        {!condition.isRiichi && !question.openMelds.some(m => m.isOpen) && <span style={{
           background: '#95a5a6', color: '#fff', padding: '2px 10px',
           borderRadius: 3, fontWeight: 'bold', fontSize: 14,
         }}>ヤミテン</span>}
-        {question.openMelds.length > 0 && <span style={{
+        {question.openMelds.some(m => m.isOpen) && <span style={{
           background: '#e67e22', color: '#fff', padding: '2px 10px',
           borderRadius: 3, fontWeight: 'bold', fontSize: 14,
         }}>鳴きあり</span>}
+        {condition.isRinshan && <span style={{
+          background: '#1abc9c', color: '#fff', padding: '2px 10px',
+          borderRadius: 3, fontWeight: 'bold', fontSize: 14,
+        }}>嶺上</span>}
+        {condition.isHaitei && <span style={{
+          background: '#2c3e50', color: '#fff', padding: '2px 10px',
+          borderRadius: 3, fontWeight: 'bold', fontSize: 14,
+        }}>海底</span>}
+        {condition.isHoutei && <span style={{
+          background: '#2c3e50', color: '#fff', padding: '2px 10px',
+          borderRadius: 3, fontWeight: 'bold', fontSize: 14,
+        }}>河底</span>}
+        {condition.doraCount > 0 && <span style={{
+          background: '#c0392b', color: '#fff', padding: '2px 10px',
+          borderRadius: 3, fontWeight: 'bold', fontSize: 14,
+        }}>ドラ{condition.doraCount}</span>}
+        {condition.uraDoraCount > 0 && <span style={{
+          background: '#d35400', color: '#fff', padding: '2px 10px',
+          borderRadius: 3, fontWeight: 'bold', fontSize: 14,
+        }}>裏{condition.uraDoraCount}</span>}
       </div>
 
       {/* Hand display */}
@@ -180,7 +204,6 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
       }}>
         <div style={{ fontSize: isMobile ? 13 : 15, color: '#7f8c8d', marginBottom: 6 }}>手牌</div>
         {(() => {
-          // アガリ牌の位置を特定（同じ牌が複数ある場合は最後の出現を採用）
           let agariIdx = -1;
           for (let j = 0; j < question.closedTiles.length; j++) {
             if (question.closedTiles[j].suit === condition.agariTile.suit &&
@@ -190,57 +213,100 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
           }
           const mainHand = question.closedTiles.filter((_, i) => i !== agariIdx);
           const agariTile = agariIdx >= 0 ? question.closedTiles[agariIdx] : null;
+          const hasMelds = question.openMelds.length > 0;
+          const meldTileCount = question.openMelds.reduce((s, m) => s + m.tiles.length, 0);
+          const splitRow = meldTileCount >= 7;
 
-          return (
+          const meldsEl = hasMelds && (
             <div style={{
               display: 'flex', flexWrap: 'nowrap',
-              alignItems: 'flex-end', justifyContent: 'center',
+              alignItems: 'flex-end',
+              justifyContent: splitRow ? 'center' : undefined,
             }}>
-              {/* 主手牌（gap 0 で密に詰める） */}
-              {mainHand.map((tile, i) => (
-                <div key={i} style={{ flexShrink: 0 }}>
-                  <TileButton tile={tile} />
-                </div>
-              ))}
-
-              {/* アガリ牌 + ラベル */}
-              {agariTile && (
-                <>
-                  <div style={{ width: isMobile ? 8 : 12, flexShrink: 0 }} />
-                  <div style={{
-                    display: 'flex', flexDirection: 'column',
-                    alignItems: 'center', flexShrink: 0,
+              {question.openMelds.map((meld, mi) => {
+                const isAnkan = meld.type === 'kantsu' && !meld.isOpen;
+                return (
+                  <div key={`meld-${mi}`} style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    marginLeft: mi > 0 ? 4 : 0,
+                    flexShrink: 0,
                   }}>
-                    <div style={{
-                      fontSize: isMobile ? 10 : 11,
-                      color: '#e67e22', fontWeight: 'bold',
-                      lineHeight: 1, marginBottom: 2,
-                    }}>
-                      {isTsumo ? 'ツモ' : 'ロン'}
+                    {isAnkan && (
+                      <div style={{
+                        fontSize: isMobile ? 9 : 10,
+                        color: '#7f8c8d', fontWeight: 'bold',
+                        lineHeight: 1, marginBottom: 2,
+                      }}>暗槓</div>
+                    )}
+                    <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                      {meld.tiles.map((tile, ti) => (
+                        !isAnkan && ti === 0
+                          ? <RotatedTile key={ti} tile={tile} isMobile={isMobile} />
+                          : <TileButton key={ti} tile={tile} size="normal" />
+                      ))}
                     </div>
-                    <TileButton tile={agariTile} />
                   </div>
-                </>
-              )}
+                );
+              })}
+            </div>
+          );
 
-              {/* 副露 */}
-              {question.openMelds.length > 0 && (
-                <div style={{ width: isMobile ? 8 : 12, flexShrink: 0 }} />
-              )}
-              {question.openMelds.map((meld, mi) => (
-                <div key={`meld-${mi}`} style={{
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: splitRow ? 8 : 0 }}>
+              <div style={{
+                display: 'flex', flexWrap: 'nowrap',
+                alignItems: 'flex-end', justifyContent: 'center',
+              }}>
+                {mainHand.map((tile, i) => (
+                  <div key={i} style={{ flexShrink: 0 }}>
+                    <TileButton tile={tile} />
+                  </div>
+                ))}
+
+                {agariTile && (
+                  <>
+                    <div style={{ width: isMobile ? 8 : 12, flexShrink: 0 }} />
+                    <div style={{
+                      display: 'flex', flexDirection: 'column',
+                      alignItems: 'center', flexShrink: 0,
+                    }}>
+                      <div style={{
+                        fontSize: isMobile ? 10 : 11,
+                        color: '#e67e22', fontWeight: 'bold',
+                        lineHeight: 1, marginBottom: 2,
+                      }}>
+                        {isTsumo ? 'ツモ' : 'ロン'}
+                      </div>
+                      <TileButton tile={agariTile} />
+                    </div>
+                  </>
+                )}
+
+                {hasMelds && !splitRow && (
+                  <>
+                    <div style={{ width: isMobile ? 8 : 12, flexShrink: 0 }} />
+                    {meldsEl}
+                  </>
+                )}
+              </div>
+
+              {hasMelds && splitRow && (
+                <div style={{
+                  borderTop: '1px dashed #e0e0e0',
+                  paddingTop: 6,
                   display: 'flex',
-                  alignItems: 'flex-end',
-                  marginLeft: mi > 0 ? 4 : 0,
-                  flexShrink: 0,
+                  justifyContent: 'center',
                 }}>
-                  {meld.tiles.map((tile, ti) => (
-                    ti === 0
-                      ? <RotatedTile key={ti} tile={tile} isMobile={isMobile} />
-                      : <TileButton key={ti} tile={tile} size="normal" />
-                  ))}
+                  <div style={{
+                    fontSize: isMobile ? 10 : 12,
+                    color: '#7f8c8d', marginRight: 8,
+                    alignSelf: 'center', fontWeight: 'bold',
+                  }}>副露</div>
+                  {meldsEl}
                 </div>
-              ))}
+              )}
             </div>
           );
         })()}

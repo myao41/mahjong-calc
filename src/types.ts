@@ -1,4 +1,5 @@
 export type Suit = 'm' | 'p' | 's' | 'z';
+export type Difficulty = 'easy' | 'normal' | 'hard';
 
 export interface Tile {
   suit: Suit;

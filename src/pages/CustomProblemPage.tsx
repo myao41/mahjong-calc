@@ -279,6 +279,8 @@ function CustomProblemEditor({ initial, onCancel, onSaved, onSolve }: EditorProp
   }, [closedTiles, openMelds]);
 
   const totalTiles = closedTiles.length + openMelds.reduce((s, m) => s + m.tiles.length, 0);
+  const numKans = openMelds.filter(m => m.type === 'kantsu').length;
+  const expectedTotalTiles = 14 + numKans; // 槓1つにつき+1枚必要
 
   const agariTileIndex = useMemo(() => {
     if (!agariTile) return null;
@@ -297,7 +299,7 @@ function CustomProblemEditor({ initial, onCancel, onSaved, onSolve }: EditorProp
   };
 
   const addTileToHand = (tile: Tile) => {
-    if (totalTiles >= 14) return;
+    if (totalTiles >= expectedTotalTiles) return;
     setClosedTiles(prev => sortTiles([...prev, tile]));
     setAgariTileValue(tile);
     resetCalcState();
@@ -319,7 +321,9 @@ function CustomProblemEditor({ initial, onCancel, onSaved, onSolve }: EditorProp
   };
 
   const addMeld = (meld: Mentsu) => {
-    if (totalTiles + meld.tiles.length > 14) return;
+    const isKan = meld.type === 'kantsu';
+    const newExpected = 14 + numKans + (isKan ? 1 : 0);
+    if (totalTiles + meld.tiles.length > newExpected) return;
     setOpenMelds(prev => [...prev, meld]);
     setBuildMode('normal');
     setChiOptions(null);
@@ -374,7 +378,7 @@ function CustomProblemEditor({ initial, onCancel, onSaved, onSolve }: EditorProp
   const paletteDisabled = (tile: Tile): boolean => {
     const used = tileCounts.get(`${tile.suit}${tile.num}`) ?? 0;
     if (buildMode === 'normal') {
-      return used >= 4 || totalTiles >= 14;
+      return used >= 4 || totalTiles >= expectedTotalTiles;
     }
     if (buildMode === 'chi') {
       if (tile.suit === 'z') return true;
@@ -385,15 +389,16 @@ function CustomProblemEditor({ initial, onCancel, onSaved, onSolve }: EditorProp
           const u = tileCounts.get(`${tile.suit}${n}`) ?? 0;
           if (u >= 4) { canUse = false; break; }
         }
-        if (canUse) return totalTiles + 3 > 14;
+        if (canUse) return totalTiles + 3 > expectedTotalTiles;
       }
       return true;
     }
     if (buildMode === 'pon') {
-      return used + 3 > 4 || totalTiles + 3 > 14;
+      return used + 3 > 4 || totalTiles + 3 > expectedTotalTiles;
     }
     if (buildMode === 'minkan' || buildMode === 'ankan') {
-      return used + 4 > 4 || totalTiles + 4 > 14;
+      // 槓を追加すると expectedTotalTiles も +1 されるので合計4枚追加できる
+      return used + 4 > 4 || totalTiles + 4 > expectedTotalTiles + 1;
     }
     return false;
   };
@@ -411,8 +416,11 @@ function CustomProblemEditor({ initial, onCancel, onSaved, onSolve }: EditorProp
   };
 
   const validate = (): { ok: false; error: string } | { ok: true; condition: AgariCondition } => {
-    if (totalTiles !== 14) {
-      return { ok: false, error: `手牌が14枚揃っていません (現在: ${totalTiles}枚)` };
+    if (totalTiles !== expectedTotalTiles) {
+      return {
+        ok: false,
+        error: `手牌の枚数が正しくありません (現在: ${totalTiles}枚, 必要: ${expectedTotalTiles}枚${numKans > 0 ? `、槓${numKans}つにつき+1枚` : ''})`,
+      };
     }
     const condition = buildCondition();
     if (!condition) {
