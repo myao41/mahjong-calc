@@ -20,6 +20,10 @@ const SPRITE_COLS = 9;
 const SPRITE_ROWS = 5;
 const NATIVE_TILE_W = 640 / SPRITE_COLS; // ≈ 71.11
 const NATIVE_TILE_H = 480 / SPRITE_ROWS; // = 96
+// 各行の絵柄下端は本来同じになるべきだが、新スプライトでは行ごとに最大8pxずれている。
+// 行0(萬)を基準に、他の行を下方向にシフトして絵柄下端を揃える。
+// 測定値: row底=[84,82,79,76] → 差分=[0,2,5,8]
+const ROW_BOTTOM_ALIGN = [0, 2, 5, 8, 0]; // 行4は花牌(未使用)なので0
 
 function spriteCoord(tile: Tile): { col: number; row: number } {
   if (tile.suit === 'z') {
@@ -47,7 +51,7 @@ export function TileButton({ tile, onClick, selected, size = 'normal', disabled 
   const bgW = 640 * scale;
   const bgH = 480 * scale;
   const bgX = -col * NATIVE_TILE_W * scale;
-  const bgY = -row * NATIVE_TILE_H * scale;
+  const bgY = (-row * NATIVE_TILE_H + ROW_BOTTOM_ALIGN[row]) * scale;
 
   return (
     <div
