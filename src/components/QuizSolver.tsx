@@ -6,6 +6,28 @@ import { DetailScoreTable } from './DetailScoreTable';
 import { generateHint } from '../utils/hint';
 import type { UserAnswer } from '../utils/learningLog';
 import { useViewport } from '../utils/useViewport';
+import type { Tile } from '../types';
+
+/** 鳴いた牌の最左を90度横向きに表示するヘルパー */
+function RotatedTile({ tile, isMobile }: { tile: Tile; isMobile: boolean }) {
+  const tileW = isMobile ? 22 : 34;
+  const tileH = isMobile ? 33 : 51;
+  // 回転後の見た目: 横向きなので幅=tileH, 高さ=tileW
+  return (
+    <div style={{
+      width: tileH,
+      height: tileW,
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+    }}>
+      <div style={{ transform: 'rotate(-90deg)' }}>
+        <TileButton tile={tile} size="normal" />
+      </div>
+    </div>
+  );
+}
 
 type Phase = 'answering' | 'correct' | 'wrong';
 
@@ -212,6 +234,7 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
           {question.openMelds.map((meld, mi) => (
             <div key={`meld-${mi}`} style={{
               display: 'flex', gap: 1,
+              alignItems: 'flex-end',
               padding: isMobile ? '3px 4px' : '5px 6px',
               border: '1px dashed #bdc3c7',
               borderRadius: 8,
@@ -219,7 +242,9 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
               marginBottom: isMobile ? -4 : -6,
             }}>
               {meld.tiles.map((tile, ti) => (
-                <TileButton key={ti} tile={tile} size="normal" />
+                ti === 0
+                  ? <RotatedTile key={ti} tile={tile} isMobile={isMobile} />
+                  : <TileButton key={ti} tile={tile} size="normal" />
               ))}
             </div>
           ))}
