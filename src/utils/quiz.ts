@@ -698,87 +698,75 @@ function generateHandByStrategy(strategy: string): HandResult | null {
   }
 }
 
+function makeBaseCondition(hand: HandResult): AgariCondition {
+  return {
+    agariType: pick(['tsumo', 'ron'] as const),
+    agariTile: hand.agariTile,
+    seatWind: pick([1, 2, 3, 4] as Wind[]),
+    roundWind: pick([1, 2] as Wind[]),
+    isRiichi: false, isDoubleRiichi: false, isIppatsu: false,
+    isRinshan: false, isChankan: false, isHaitei: false,
+    isHoutei: false, isTenhou: false, isChihou: false,
+    doraCount: 0, uraDoraCount: 0, redDoraCount: 0,
+  };
+}
+
+function applyDifficultyConditions(condition: AgariCondition, hand: HandResult, difficulty: Difficulty): boolean {
+  const isMenzen = hand.openMelds.every(m => !m.isOpen);
+
+  if (difficulty === 'easy') {
+    if (hand.openMelds.some(m => m.isOpen)) return false;
+    condition.isRiichi = Math.random() < 0.3;
+  } else if (difficulty === 'hard') {
+    if (isMenzen) {
+      condition.isRiichi = Math.random() < 0.5;
+      if (condition.isRiichi && Math.random() < 0.3) condition.isIppatsu = true;
+    }
+    const doraRoll = Math.random();
+    if (doraRoll < 0.4) condition.doraCount = 1;
+    else if (doraRoll < 0.6) condition.doraCount = 2;
+    else if (doraRoll < 0.7) condition.doraCount = 3;
+    if (condition.isRiichi && condition.doraCount > 0 && Math.random() < 0.3) {
+      condition.uraDoraCount = pick([1, 1, 2]);
+    }
+    const hasKantsu = hand.openMelds.some(m => m.type === 'kantsu');
+    if (hasKantsu && condition.agariType === 'tsumo' && Math.random() < 0.3) condition.isRinshan = true;
+    if (!condition.isRinshan && Math.random() < 0.08) {
+      if (condition.agariType === 'tsumo') condition.isHaitei = true;
+      else condition.isHoutei = true;
+    }
+  } else {
+    if (isMenzen) condition.isRiichi = Math.random() < 0.5;
+  }
+
+  if (!condition.isRiichi && isMenzen && difficulty !== 'easy') {
+    condition.isRiichi = Math.random() < 0.3;
+  }
+  return true;
+}
+
+function tryBuildQuiz(hand: HandResult, difficulty: Difficulty): QuizQuestion | null {
+  const condition = makeBaseCondition(hand);
+  if (!applyDifficultyConditions(condition, hand, difficulty)) return null;
+
+  const isMenzen = hand.openMelds.every(m => !m.isOpen);
+  let answer = calculateScore(hand.closedTiles, hand.openMelds, condition);
+  if (!answer && isMenzen) {
+    condition.isRiichi = true;
+    answer = calculateScore(hand.closedTiles, hand.openMelds, condition);
+  }
+  if (!answer) return null;
+  if (answer.yaku.some(y => y.isYakuman)) return null;
+  return { closedTiles: hand.closedTiles, openMelds: hand.openMelds, condition, answer };
+}
+
 export function generateQuiz(difficulty: Difficulty = 'normal'): QuizQuestion {
   for (let retry = 0; retry < 100; retry++) {
     const strategy = pickStrategy(difficulty);
     const hand = generateHandByStrategy(strategy);
     if (!hand) continue;
-
-    const agariType = pick(['tsumo', 'ron'] as const);
-    const seatWind = pick([1, 2, 3, 4] as Wind[]);
-    const roundWind = pick([1, 2] as Wind[]);
-
-    const condition: AgariCondition = {
-      agariType,
-      agariTile: hand.agariTile,
-      seatWind,
-      roundWind,
-      isRiichi: false,
-      isDoubleRiichi: false,
-      isIppatsu: false,
-      isRinshan: false,
-      isChankan: false,
-      isHaitei: false,
-      isHoutei: false,
-      isTenhou: false,
-      isChihou: false,
-      doraCount: 0,
-      uraDoraCount: 0,
-      redDoraCount: 0,
-    };
-
-    const isMenzen = hand.openMelds.every(m => !m.isOpen);
-    if (difficulty === 'easy') {
-      if (hand.openMelds.some(m => m.isOpen)) continue;
-      condition.isRiichi = Math.random() < 0.3;
-    } else if (difficulty === 'hard') {
-      if (isMenzen) {
-        condition.isRiichi = Math.random() < 0.5;
-        if (condition.isRiichi && Math.random() < 0.3) {
-          condition.isIppatsu = true;
-        }
-      }
-      const doraRoll = Math.random();
-      if (doraRoll < 0.4) condition.doraCount = 1;
-      else if (doraRoll < 0.6) condition.doraCount = 2;
-      else if (doraRoll < 0.7) condition.doraCount = 3;
-      if (condition.isRiichi && condition.doraCount > 0 && Math.random() < 0.3) {
-        condition.uraDoraCount = pick([1, 1, 2]);
-      }
-      const hasKantsu = hand.openMelds.some(m => m.type === 'kantsu');
-      if (hasKantsu && agariType === 'tsumo' && Math.random() < 0.3) {
-        condition.isRinshan = true;
-      }
-      if (!condition.isRinshan && Math.random() < 0.08) {
-        if (agariType === 'tsumo') condition.isHaitei = true;
-        else condition.isHoutei = true;
-      }
-    } else {
-      if (isMenzen) {
-        condition.isRiichi = Math.random() < 0.5;
-      }
-    }
-
-    if (!condition.isRiichi && isMenzen && difficulty !== 'easy') {
-      condition.isRiichi = Math.random() < 0.3;
-    }
-
-    let answer = calculateScore(hand.closedTiles, hand.openMelds, condition);
-
-    if (!answer && isMenzen) {
-      condition.isRiichi = true;
-      answer = calculateScore(hand.closedTiles, hand.openMelds, condition);
-    }
-
-    if (!answer) continue;
-    if (answer.yaku.some(y => y.isYakuman)) continue;
-
-    return {
-      closedTiles: hand.closedTiles,
-      openMelds: hand.openMelds,
-      condition,
-      answer,
-    };
+    const q = tryBuildQuiz(hand, difficulty);
+    if (q) return q;
   }
 
   const closedTiles = sortTiles([
@@ -823,7 +811,7 @@ const CATEGORY_STRATEGY_MAP: Record<ErrorCategory, string[]> = {
   other: ['random'],
 };
 
-export function generateWeaknessQuiz(categories: CategoryCount[]): QuizQuestion {
+export function generateWeaknessQuiz(categories: CategoryCount[], difficulty: Difficulty = 'normal'): QuizQuestion {
   const top = categories.slice(0, 3);
   const totalWeight = top.reduce((s, c) => s + c.count, 0);
 
@@ -841,53 +829,12 @@ export function generateWeaknessQuiz(categories: CategoryCount[]): QuizQuestion 
   }
 
   for (let retry = 0; retry < 100; retry++) {
-    const s = retry < 70 ? strategy : pickStrategy('normal');
+    const s = retry < 70 ? strategy : pickStrategy(difficulty);
     const hand = generateHandByStrategy(s);
     if (!hand) continue;
-
-    const agariType = pick(['tsumo', 'ron'] as const);
-    const seatWind = pick([1, 2, 3, 4] as Wind[]);
-    const roundWind = pick([1, 2] as Wind[]);
-
-    const condition: AgariCondition = {
-      agariType,
-      agariTile: hand.agariTile,
-      seatWind,
-      roundWind,
-      isRiichi: false, isDoubleRiichi: false, isIppatsu: false,
-      isRinshan: false, isChankan: false, isHaitei: false,
-      isHoutei: false, isTenhou: false, isChihou: false,
-      doraCount: 0, uraDoraCount: 0, redDoraCount: 0,
-    };
-
-    const isMenzen = hand.openMelds.every(m => !m.isOpen);
-    if (isMenzen) {
-      condition.isRiichi = Math.random() < 0.5;
-    }
-    if (!condition.isRiichi && isMenzen) {
-      condition.isRiichi = Math.random() < 0.3;
-    }
-
-    if (strategy === 'kantsu_mix') {
-      const hasKantsu = hand.openMelds.some(m => m.type === 'kantsu');
-      if (hasKantsu && agariType === 'tsumo' && Math.random() < 0.3) {
-        condition.isRinshan = true;
-      }
-      const doraRoll = Math.random();
-      if (doraRoll < 0.3) condition.doraCount = 1;
-      else if (doraRoll < 0.45) condition.doraCount = 2;
-    }
-
-    let answer = calculateScore(hand.closedTiles, hand.openMelds, condition);
-    if (!answer && isMenzen) {
-      condition.isRiichi = true;
-      answer = calculateScore(hand.closedTiles, hand.openMelds, condition);
-    }
-    if (!answer) continue;
-    if (answer.yaku.some(y => y.isYakuman)) continue;
-
-    return { closedTiles: hand.closedTiles, openMelds: hand.openMelds, condition, answer };
+    const q = tryBuildQuiz(hand, difficulty);
+    if (q) return q;
   }
 
-  return generateQuiz('normal');
+  return generateQuiz(difficulty);
 }

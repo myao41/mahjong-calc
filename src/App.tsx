@@ -82,6 +82,7 @@ export default function App() {
         <QuizPage
           weaknessMode={weaknessMode}
           onExitWeakness={handleExitWeakness}
+          onStartWeakness={handleStartWeakness}
         />
       )}
       {page === 'custom' && <CustomProblemPage />}
