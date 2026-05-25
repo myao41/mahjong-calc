@@ -82,61 +82,59 @@ export function QuizPage({ weaknessMode, onExitWeakness, onStartWeakness }: Prop
         </div>
       )}
 
-      {!weaknessMode && (
-        <div style={{
-          display: 'flex', gap: 6, marginBottom: 14,
-          justifyContent: 'center', flexWrap: 'wrap',
-        }}>
-          {difficultyOptions.map(opt => (
-            <button
-              key={opt.value}
-              onClick={() => handleDifficultyChange(opt.value)}
-              style={{
-                flex: '0 1 auto',
-                padding: '8px 14px',
-                borderRadius: 6,
-                border: difficulty === opt.value ? '2px solid #3498db' : '1px solid #bdc3c7',
-                background: difficulty === opt.value ? '#eef5ff' : '#fff',
-                cursor: 'pointer',
-                fontSize: 14,
-                fontWeight: difficulty === opt.value ? 'bold' : 'normal',
-                color: difficulty === opt.value ? '#2980b9' : '#7f8c8d',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 2,
-              }}
-            >
-              <span>{opt.label}</span>
-              <span style={{ fontSize: 10, opacity: 0.8 }}>{opt.desc}</span>
-            </button>
-          ))}
+      <div style={{
+        display: 'flex', gap: 6, marginBottom: 14,
+        justifyContent: 'center', flexWrap: 'wrap',
+      }}>
+        {difficultyOptions.map(opt => (
+          <button
+            key={opt.value}
+            onClick={() => handleDifficultyChange(opt.value)}
+            style={{
+              flex: '0 1 auto',
+              padding: '8px 14px',
+              borderRadius: 6,
+              border: difficulty === opt.value ? '2px solid #3498db' : '1px solid #bdc3c7',
+              background: difficulty === opt.value ? '#eef5ff' : '#fff',
+              cursor: 'pointer',
+              fontSize: 14,
+              fontWeight: difficulty === opt.value ? 'bold' : 'normal',
+              color: difficulty === opt.value ? '#2980b9' : '#7f8c8d',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 2,
+            }}
+          >
+            <span>{opt.label}</span>
+            <span style={{ fontSize: 10, opacity: 0.8 }}>{opt.desc}</span>
+          </button>
+        ))}
 
-          {hasWeakness && onStartWeakness && (
-            <button
-              onClick={onStartWeakness}
-              style={{
-                flex: '0 1 auto',
-                padding: '8px 14px',
-                borderRadius: 6,
-                border: '2px solid #e67e22',
-                background: '#fff8e1',
-                cursor: 'pointer',
-                fontSize: 14,
-                fontWeight: 'bold',
-                color: '#e67e22',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 2,
-              }}
-            >
-              <span>苦手克服</span>
-              <span style={{ fontSize: 10, opacity: 0.8 }}>苦手分野を重点練習</span>
-            </button>
-          )}
-        </div>
-      )}
+        {!weaknessMode && hasWeakness && onStartWeakness && (
+          <button
+            onClick={onStartWeakness}
+            style={{
+              flex: '0 1 auto',
+              padding: '8px 14px',
+              borderRadius: 6,
+              border: '1px solid #bdc3c7',
+              background: '#fff',
+              cursor: 'pointer',
+              fontSize: 14,
+              fontWeight: 'normal',
+              color: '#7f8c8d',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 2,
+            }}
+          >
+            <span>苦手克服</span>
+            <span style={{ fontSize: 10, opacity: 0.8 }}>苦手分野を重点練習</span>
+          </button>
+        )}
+      </div>
 
       {question && (
         <QuizSolver
