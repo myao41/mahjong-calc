@@ -1,22 +1,26 @@
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useMemo } from 'react';
 import type { Tile, Mentsu } from '../types';
 import { TileButton } from './TileButton';
 
 interface Props {
   closedTiles: Tile[];
   openMelds: Mentsu[];
-  agariTileIndex: number | null;
+  agariTile: Tile | null;
   onRemoveTile: (index: number) => void;
-  onSetAgariTile: (index: number) => void;
+  onSetAgariTile: (tile: Tile) => void;
   onRemoveMeld: (index: number) => void;
 }
 
 const TILES_PER_ROW = 9;
 
+function tileKey(t: Tile): string {
+  return `${t.suit}${t.num}`;
+}
+
 export function HandDisplay({
   closedTiles,
   openMelds,
-  agariTileIndex,
+  agariTile,
   onRemoveTile,
   onSetAgariTile,
   onRemoveMeld,
@@ -40,8 +44,21 @@ export function HandDisplay({
   const numKans = openMelds.filter(m => m.type === 'kantsu').length;
   const expectedTotal = 14 + numKans;
 
-  // × button size scales with tile
-  const deleteSize = tileWidth ? Math.max(16, Math.round(tileWidth * 0.32)) : 16;
+  // Unique tile types in closed hand for agari selector
+  const uniqueTiles = useMemo(() => {
+    const seen = new Set<string>();
+    const result: Tile[] = [];
+    for (const t of closedTiles) {
+      const k = tileKey(t);
+      if (!seen.has(k)) {
+        seen.add(k);
+        result.push(t);
+      }
+    }
+    return result;
+  }, [closedTiles]);
+
+  const agariKey = agariTile ? tileKey(agariTile) : null;
 
   return (
     <div ref={containerRef} style={{ marginBottom: 16 }}>
@@ -51,46 +68,16 @@ export function HandDisplay({
 
       <div style={{ marginBottom: 8 }}>
         <div style={{ fontSize: 12, color: '#7f8c8d', marginBottom: 4 }}>
-          門前手牌（タップで和了牌指定 / ×で削除）
+          門前手牌（タップで削除）
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 0, minHeight: 54 }}>
           {closedTiles.map((tile, i) => (
-            <div key={i} style={{ position: 'relative' }}>
-              <TileButton
-                tile={tile}
-                onClick={() => onSetAgariTile(i)}
-                selected={agariTileIndex === i}
-                widthPx={tileWidth}
-              />
-              {agariTileIndex === i && (
-                <div style={{
-                  position: 'absolute', top: -6, left: -2,
-                  background: '#e67e22', color: '#fff',
-                  fontSize: deleteSize > 20 ? 11 : 9,
-                  borderRadius: 3, padding: '0 3px',
-                  pointerEvents: 'none',
-                }}>
-                  和
-                </div>
-              )}
-              <div
-                onClick={(e) => { e.stopPropagation(); onRemoveTile(i); }}
-                style={{
-                  position: 'absolute', top: -4, right: -4,
-                  width: deleteSize, height: deleteSize,
-                  borderRadius: '50%',
-                  background: '#e74c3c', color: '#fff',
-                  fontSize: deleteSize > 20 ? 13 : 10,
-                  fontWeight: 'bold',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: 'pointer',
-                  lineHeight: 1,
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
-                }}
-              >
-                ×
-              </div>
-            </div>
+            <TileButton
+              key={i}
+              tile={tile}
+              onClick={() => onRemoveTile(i)}
+              widthPx={tileWidth}
+            />
           ))}
           {closedTiles.length === 0 && (
             <div style={{ color: '#bdc3c7', fontSize: 14, padding: 16 }}>
@@ -99,6 +86,42 @@ export function HandDisplay({
           )}
         </div>
       </div>
+
+      {/* Agari tile selector */}
+      {uniqueTiles.length > 0 && (
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ fontSize: 12, color: '#7f8c8d', marginBottom: 4 }}>
+            和了牌（タップで選択）
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            {uniqueTiles.map((tile) => {
+              const k = tileKey(tile);
+              const isSelected = k === agariKey;
+              return (
+                <div key={k} style={{ position: 'relative' }}>
+                  <TileButton
+                    tile={tile}
+                    onClick={() => onSetAgariTile(tile)}
+                    selected={isSelected}
+                    widthPx={tileWidth ? Math.round(tileWidth * 0.7) : undefined}
+                    size="small"
+                  />
+                  {isSelected && (
+                    <div style={{
+                      position: 'absolute', top: -5, right: -5,
+                      background: '#e67e22', color: '#fff',
+                      fontSize: 9, borderRadius: 3, padding: '0 3px',
+                      pointerEvents: 'none',
+                    }}>
+                      和
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {openMelds.length > 0 && (
         <div>

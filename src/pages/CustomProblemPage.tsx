@@ -282,17 +282,6 @@ function CustomProblemEditor({ initial, onCancel, onSaved, onSolve }: EditorProp
   const numKans = openMelds.filter(m => m.type === 'kantsu').length;
   const expectedTotalTiles = 14 + numKans; // 槓1つにつき+1枚必要
 
-  const agariTileIndex = useMemo(() => {
-    if (!agariTile) return null;
-    let lastIdx = -1;
-    for (let i = 0; i < closedTiles.length; i++) {
-      if (closedTiles[i].suit === agariTile.suit && closedTiles[i].num === agariTile.num) {
-        lastIdx = i;
-      }
-    }
-    return lastIdx < 0 ? null : lastIdx;
-  }, [closedTiles, agariTile]);
-
   const resetCalcState = () => {
     setError(null);
     setCalcResult(null);
@@ -314,10 +303,6 @@ function CustomProblemEditor({ initial, onCancel, onSaved, onSolve }: EditorProp
       if (!stillHas) setAgariTileValue(null);
     }
     resetCalcState();
-  };
-
-  const handleSetAgariFromIdx = (idx: number) => {
-    setAgariTileValue(closedTiles[idx] ?? null);
   };
 
   const addMeld = (meld: Mentsu) => {
@@ -511,9 +496,9 @@ function CustomProblemEditor({ initial, onCancel, onSaved, onSolve }: EditorProp
         <HandDisplay
           closedTiles={closedTiles}
           openMelds={openMelds}
-          agariTileIndex={agariTileIndex}
+          agariTile={agariTile}
           onRemoveTile={handleRemoveTile}
-          onSetAgariTile={handleSetAgariFromIdx}
+          onSetAgariTile={(tile) => { setAgariTileValue(tile); resetCalcState(); }}
           onRemoveMeld={handleRemoveMeld}
         />
       </div>
