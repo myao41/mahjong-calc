@@ -646,31 +646,49 @@ function CustomProblemEditor({ initial, onCancel, onSaved, onSolve }: EditorProp
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-          <label style={checkboxLabelStyle}>
-            <input type="checkbox" checked={isRiichi} onChange={e => {
-              setIsRiichi(e.target.checked);
-              if (e.target.checked) setIsDoubleRiichi(false);
-              else setIsIppatsu(false);
-              resetCalcState();
-            }} /> 立直
-          </label>
-          <label style={checkboxLabelStyle}>
-            <input type="checkbox" checked={isDoubleRiichi} onChange={e => {
-              setIsDoubleRiichi(e.target.checked);
-              if (e.target.checked) setIsRiichi(false);
-              else setIsIppatsu(false);
-              resetCalcState();
-            }} /> ダブル立直
-          </label>
-          <label style={{ ...checkboxLabelStyle, opacity: (isRiichi || isDoubleRiichi) ? 1 : 0.4 }}>
-            <input
-              type="checkbox"
-              checked={isIppatsu}
-              disabled={!isRiichi && !isDoubleRiichi}
-              onChange={e => { setIsIppatsu(e.target.checked); resetCalcState(); }}
-            /> 一発
-          </label>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 13, color: '#7f8c8d', marginBottom: 4 }}>特殊条件</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <button
+              onClick={() => {
+                const next = !isRiichi;
+                setIsRiichi(next);
+                if (next) setIsDoubleRiichi(false);
+                else setIsIppatsu(false);
+                resetCalcState();
+              }}
+              style={toggleBtnStyle(isRiichi)}
+            >
+              立直
+            </button>
+            <button
+              onClick={() => {
+                const next = !isDoubleRiichi;
+                setIsDoubleRiichi(next);
+                if (next) setIsRiichi(false);
+                else setIsIppatsu(false);
+                resetCalcState();
+              }}
+              style={toggleBtnStyle(isDoubleRiichi)}
+            >
+              W立直
+            </button>
+            <button
+              onClick={() => {
+                if (isRiichi || isDoubleRiichi) {
+                  setIsIppatsu(!isIppatsu);
+                  resetCalcState();
+                }
+              }}
+              style={{
+                ...toggleBtnStyle(isIppatsu),
+                opacity: (isRiichi || isDoubleRiichi) ? 1 : 0.35,
+                cursor: (isRiichi || isDoubleRiichi) ? 'pointer' : 'default',
+              }}
+            >
+              一発
+            </button>
+          </div>
         </div>
       </div>
 
@@ -758,7 +776,3 @@ function actionBtnStyle(bg: string): React.CSSProperties {
   };
 }
 
-const checkboxLabelStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 4,
-  fontSize: 13, cursor: 'pointer',
-};
