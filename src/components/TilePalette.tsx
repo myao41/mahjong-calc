@@ -1,3 +1,4 @@
+import { useRef, useState, useEffect } from 'react';
 import type { Tile, Suit } from '../types';
 import { TileButton } from './TileButton';
 
@@ -13,7 +14,24 @@ function tileKey(tile: Tile): string {
   return `${tile.suit}${tile.num}`;
 }
 
+const MAX_COLS = 9; // 萬子・筒子・索子は9枚
+
 export function TilePalette({ onSelect, tileCounts, size = 'normal', isDisabled }: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [tileWidth, setTileWidth] = useState<number | undefined>(undefined);
+
+  useEffect(() => {
+    function measure() {
+      if (containerRef.current) {
+        const w = containerRef.current.clientWidth;
+        setTileWidth(Math.floor(w / MAX_COLS));
+      }
+    }
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
+
   const suits: { suit: Suit; label: string; count: number }[] = [
     { suit: 'm', label: '萬子', count: 9 },
     { suit: 'p', label: '筒子', count: 9 },
@@ -22,7 +40,7 @@ export function TilePalette({ onSelect, tileCounts, size = 'normal', isDisabled 
   ];
 
   return (
-    <div style={{ marginBottom: 16 }}>
+    <div ref={containerRef} style={{ marginBottom: 16 }}>
       {suits.map(({ suit, label, count }) => (
         <div key={suit} style={{ marginBottom: 4 }}>
           <div style={{ fontSize: 12, color: '#7f8c8d', marginBottom: 2 }}>{label}</div>
@@ -39,6 +57,7 @@ export function TilePalette({ onSelect, tileCounts, size = 'normal', isDisabled 
                   onClick={onSelect}
                   disabled={disabled}
                   size={size}
+                  widthPx={tileWidth}
                 />
               );
             })}
