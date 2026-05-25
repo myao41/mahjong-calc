@@ -87,9 +87,39 @@ export function HandDisplay({
         </div>
       </div>
 
+      {openMelds.length > 0 && (
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ fontSize: 12, color: '#7f8c8d', marginBottom: 2 }}>
+            副露（タップで削除）
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {openMelds.map((meld, mi) => (
+              <div
+                key={mi}
+                style={{
+                  display: 'flex', gap: 0, padding: '2px 4px',
+                  border: '1px dashed #bdc3c7', borderRadius: 4,
+                  cursor: 'pointer', alignItems: 'flex-end',
+                }}
+                onClick={() => onRemoveMeld(mi)}
+              >
+                {meld.tiles.map((tile, ti) => (
+                  <TileButton key={ti} tile={tile} onClick={() => onRemoveMeld(mi)} size="small" />
+                ))}
+                <div style={{ fontSize: 10, color: '#7f8c8d', alignSelf: 'center', marginLeft: 2 }}>
+                  {meld.type === 'shuntsu' ? 'チー'
+                    : meld.type === 'koutsu' ? 'ポン'
+                    : meld.isOpen ? '明槓' : '暗槓'}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Agari tile selector */}
       {uniqueTiles.length > 0 && (
-        <div style={{ marginBottom: 8 }}>
+        <div>
           <div style={{ fontSize: 12, color: '#7f8c8d', marginBottom: 4 }}>
             和了牌（タップで選択）
           </div>
@@ -119,36 +149,6 @@ export function HandDisplay({
                 </div>
               );
             })}
-          </div>
-        </div>
-      )}
-
-      {openMelds.length > 0 && (
-        <div>
-          <div style={{ fontSize: 12, color: '#7f8c8d', marginBottom: 2 }}>
-            副露（タップで削除）
-          </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {openMelds.map((meld, mi) => (
-              <div
-                key={mi}
-                style={{
-                  display: 'flex', gap: 0, padding: '2px 4px',
-                  border: '1px dashed #bdc3c7', borderRadius: 4,
-                  cursor: 'pointer', alignItems: 'flex-end',
-                }}
-                onClick={() => onRemoveMeld(mi)}
-              >
-                {meld.tiles.map((tile, ti) => (
-                  <TileButton key={ti} tile={tile} onClick={() => onRemoveMeld(mi)} size="small" />
-                ))}
-                <div style={{ fontSize: 10, color: '#7f8c8d', alignSelf: 'center', marginLeft: 2 }}>
-                  {meld.type === 'shuntsu' ? 'チー'
-                    : meld.type === 'koutsu' ? 'ポン'
-                    : meld.isOpen ? '明槓' : '暗槓'}
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       )}
