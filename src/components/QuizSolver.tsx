@@ -85,7 +85,7 @@ const inputStyle: React.CSSProperties = {
 export function QuizSolver({ question, onNext, nextLabel = '次の問題', title, onAnswered, onSkip }: Props) {
   const { isMobile } = useViewport();
   const [phase, setPhase] = useState<Phase>('answering');
-  const [inputHan, setInputHan] = useState('1');
+  const [inputHan, setInputHan] = useState('0');
   const [inputFu, setInputFu] = useState('20');
   const [inputScore1, setInputScore1] = useState('');
   const [inputScore2, setInputScore2] = useState('');
@@ -93,7 +93,7 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
   // Reset when question changes
   useEffect(() => {
     setPhase('answering');
-    setInputHan('1');
+    setInputHan('0');
     setInputFu('20');
     setInputScore1('');
     setInputScore2('');
@@ -324,7 +324,7 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
             <div style={{ display: 'flex', alignItems: 'center', fontSize: 16 }}>
               <span style={{ flex: '0 0 auto' }}>翻数:</span>
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
-                <Stepper value={inputHan} onChange={setInputHan} min={1} max={13} />
+                <Stepper value={inputHan} onChange={setInputHan} min={0} max={13} />
                 <span style={{ color: '#7f8c8d', minWidth: 20 }}>翻</span>
               </div>
             </div>
@@ -338,9 +338,7 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', fontSize: 16 }}>
-              <span style={{ flex: '0 0 auto' }}>
-                点数{isTsumo ? '(ツモ)' : '(ロン)'}:
-              </span>
+              <span style={{ flex: '0 0 auto' }}>点数:</span>
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
                 {isTsumo && !isDealer ? (
                   <>
