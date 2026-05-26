@@ -57,7 +57,7 @@ function OptionButtons<T extends string | number | boolean>({
 
 export function SettingsPage() {
   const [settings, setSettings] = useState<Settings>(() => loadSettings());
-  const { user, loading, syncing, signInWithTwitter, signOut } = useAuth();
+  const { user, loading, syncing, signInWithTwitter } = useAuth();
   const [showAuthInfo, setShowAuthInfo] = useState(false);
 
   const update = (partial: Partial<Settings>) => {
