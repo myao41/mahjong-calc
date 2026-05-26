@@ -217,6 +217,22 @@ export async function pullSettings(): Promise<Settings | null> {
 }
 
 // =============================================
+// Delete All User Data (withdraw)
+// =============================================
+
+export async function deleteAllCloudData(): Promise<void> {
+  const userId = await getUserId();
+  if (!userId) return;
+
+  await Promise.all([
+    supabase.from('learning_records').delete().eq('user_id', userId),
+    supabase.from('custom_problems').delete().eq('user_id', userId),
+    supabase.from('cert_records').delete().eq('user_id', userId),
+    supabase.from('user_settings').delete().eq('user_id', userId),
+  ]);
+}
+
+// =============================================
 // Full Sync (on login)
 // =============================================
 

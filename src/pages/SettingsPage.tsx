@@ -99,16 +99,26 @@ export function SettingsPage() {
                 ☁ データを同期中...
               </div>
             )}
-            <button
-              onClick={signOut}
-              style={{
-                padding: '6px 14px', fontSize: 13, fontWeight: 'bold',
-                background: '#fff', color: '#e74c3c', border: '1px solid #e74c3c',
-                borderRadius: 4, cursor: 'pointer',
-              }}
-            >
-              ログアウト
-            </button>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button
+                onClick={signOut}
+                style={{
+                  padding: '6px 14px', fontSize: 13, fontWeight: 'bold',
+                  background: '#fff', color: '#e74c3c', border: '1px solid #e74c3c',
+                  borderRadius: 4, cursor: 'pointer',
+                }}
+              >
+                ログアウト
+              </button>
+              <Link
+                to="/settings/account"
+                style={{
+                  fontSize: 13, color: '#7f8c8d', textDecoration: 'none',
+                }}
+              >
+                アカウント管理 &gt;
+              </Link>
+            </div>
           </div>
         ) : !showAuthInfo ? (
           <div>

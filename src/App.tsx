@@ -5,6 +5,7 @@ import { CustomProblemPage } from './pages/CustomProblemPage';
 import { LearningLogPage } from './pages/LearningLogPage';
 import { ReferencePage } from './pages/ReferencePage';
 import { SettingsPage } from './pages/SettingsPage';
+import { AccountPage } from './pages/AccountPage';
 import { TermsPage } from './pages/TermsPage';
 import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
 import { useViewport } from './utils/useViewport';
@@ -81,6 +82,7 @@ export default function App() {
         <Route path="/reference" element={<Navigate to="/reference/fu" replace />} />
         <Route path="/reference/:tab" element={<ReferencePage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/settings/account" element={<AccountPage />} />
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/privacy" element={<PrivacyPolicyPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
