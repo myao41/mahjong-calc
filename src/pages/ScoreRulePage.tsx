@@ -35,7 +35,7 @@ export function ScoreRulePage() {
         点数計算ルール
       </h2>
       <div style={{ fontSize: 12, color: '#7f8c8d', marginBottom: 16 }}>
-        M-League公式ルール 第4条 得点計算(2) 翻の計算とアガリ点 準拠
+        M-League公式ルール 第4条 得点計算(2) 翻の計算とアガリ点 準拠：<a href="https://m-league.jp/about/" target="_blank" rel="noopener noreferrer" style={{ color: '#7f8c8d' }}>https://m-league.jp/about/</a>
       </div>
 
       <Section title="基本計算式">
