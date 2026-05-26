@@ -72,7 +72,17 @@ export function SettingsPage() {
 
       {/* Account section */}
       <div style={sectionStyle}>
-        <div style={sectionTitleStyle}>アカウント</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={sectionTitleStyle}>アカウント</div>
+          {!loading && user && (
+            <Link
+              to="/settings/account"
+              style={{ fontSize: 13, color: '#7f8c8d', textDecoration: 'none' }}
+            >
+              アカウント管理 &gt;
+            </Link>
+          )}
+        </div>
         {loading ? (
           <div style={{ fontSize: 13, color: '#7f8c8d', padding: '8px 0' }}>読み込み中...</div>
         ) : user ? (
@@ -95,30 +105,10 @@ export function SettingsPage() {
               </div>
             </div>
             {syncing && (
-              <div style={{ fontSize: 12, color: '#3498db', marginBottom: 6 }}>
+              <div style={{ fontSize: 12, color: '#3498db', marginTop: 4 }}>
                 ☁ データを同期中...
               </div>
             )}
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <button
-                onClick={signOut}
-                style={{
-                  padding: '6px 14px', fontSize: 13, fontWeight: 'bold',
-                  background: '#fff', color: '#e74c3c', border: '1px solid #e74c3c',
-                  borderRadius: 4, cursor: 'pointer',
-                }}
-              >
-                ログアウト
-              </button>
-              <Link
-                to="/settings/account"
-                style={{
-                  fontSize: 13, color: '#7f8c8d', textDecoration: 'none',
-                }}
-              >
-                アカウント管理 &gt;
-              </Link>
-            </div>
           </div>
         ) : !showAuthInfo ? (
           <div>

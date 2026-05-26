@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../utils/useAuth';
 import { deleteAllCloudData } from '../utils/cloudSync';
 import { showToast } from '../components/Toast';
@@ -72,6 +72,17 @@ export function AccountPage() {
           <span style={{ color: '#7f8c8d' }}>ユーザーID</span>
           <span>@{user!.user_metadata.user_name}</span>
         </div>
+
+        <button
+          onClick={signOut}
+          style={{
+            marginTop: 14, padding: '6px 14px', fontSize: 13, fontWeight: 'bold',
+            background: '#fff', color: '#e74c3c', border: '1px solid #e74c3c',
+            borderRadius: 4, cursor: 'pointer',
+          }}
+        >
+          ログアウト
+        </button>
       </div>
 
       {/* Withdraw */}
@@ -109,6 +120,16 @@ export function AccountPage() {
           {withdrawing ? '処理中...' : '退会する'}
         </button>
       </div>
+
+      <Link
+        to="/settings"
+        style={{
+          display: 'block', textAlign: 'center', marginTop: 16,
+          fontSize: 14, color: '#7f8c8d', textDecoration: 'none',
+        }}
+      >
+        ← 設定に戻る
+      </Link>
     </div>
   );
 }
