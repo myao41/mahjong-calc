@@ -199,6 +199,12 @@ export function CertificationPage() {
             <span style={{ color: '#7f8c8d' }}>合格基準</span>
             <span>全問正解</span>
           </div>
+
+          <div style={{
+            marginTop: 12, fontSize: 12, color: '#7f8c8d', lineHeight: 1.6,
+          }}>
+            ※ 検定の回答は学習履歴には記録されません
+          </div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

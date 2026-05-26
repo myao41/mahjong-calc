@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   getStats, getCategoryRanking, clearAllRecords, getTodayStats,
@@ -30,7 +30,7 @@ export function LearningLogPage() {
   if (stats.total === 0) {
     return (
       <div>
-        <h2 style={{ fontSize: 18, color: '#2c3e50', marginBottom: 12 }}>学習履歴</h2>
+        <LearningLogHeader />
         <div style={{
           padding: 32, textAlign: 'center', color: '#7f8c8d',
           background: '#f8f9fa', borderRadius: 8, border: '1px dashed #bdc3c7',
@@ -400,5 +400,57 @@ function RankingSection({ ranking, onStartWeakness }: { ranking: CategoryCount[]
         苦手を練習する
       </button>
     </section>
+  );
+}
+
+// =========================================================================
+// Header with help toggle
+// =========================================================================
+
+function LearningLogHeader() {
+  const [showHelp, setShowHelp] = useState(false);
+  const helpRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showHelp) return;
+    const handleClick = (e: MouseEvent) => {
+      if (helpRef.current && !helpRef.current.contains(e.target as Node)) {
+        setShowHelp(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showHelp]);
+
+  return (
+    <div ref={helpRef} style={{ marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <h2 style={{ fontSize: 18, color: '#2c3e50', margin: 0 }}>学習履歴</h2>
+        <button
+          onClick={() => setShowHelp(v => !v)}
+          style={{
+            width: 20, height: 20, borderRadius: '50%',
+            border: '1px solid #bdc3c7', background: showHelp ? '#2c3e50' : '#fff',
+            color: showHelp ? '#fff' : '#7f8c8d',
+            fontSize: 12, fontWeight: 'bold', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 0, lineHeight: 1,
+          }}
+          aria-label="学習履歴の説明"
+        >
+          ?
+        </button>
+      </div>
+      {showHelp && (
+        <div style={{
+          marginTop: 8, padding: '10px 12px', borderRadius: 6,
+          background: '#f8f9fa', border: '1px solid #e0e0e0',
+          fontSize: 12, lineHeight: 1.7, color: '#5d4037',
+        }}>
+          <div><b>対象：</b>クイズモード、自作問題、苦手克服モード</div>
+          <div><b>対象外：</b>検定モード</div>
+        </div>
+      )}
+    </div>
   );
 }
