@@ -104,7 +104,7 @@ export function HandDisplay({
                 onClick={() => onRemoveMeld(mi)}
               >
                 {meld.tiles.map((tile, ti) => (
-                  <TileButton key={ti} tile={tile} onClick={() => onRemoveMeld(mi)} size="small" />
+                  <TileButton key={ti} tile={tile} onClick={() => onRemoveMeld(mi)} />
                 ))}
                 <div style={{ fontSize: 10, color: '#7f8c8d', alignSelf: 'center', marginLeft: 2 }}>
                   {meld.type === 'shuntsu' ? 'チー'

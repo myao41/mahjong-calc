@@ -7,6 +7,7 @@ import { QuizSolver } from '../components/QuizSolver';
 import { calculateScore } from '../utils/score';
 import { recordQuizAnswer } from '../utils/learningLog';
 import { sortTiles } from '../utils/tiles';
+import { generateFromYaku } from '../utils/quiz';
 import {
   type SavedProblem,
   loadProblems,
@@ -18,7 +19,8 @@ import {
 type View =
   | { type: 'list' }
   | { type: 'editor'; initial: SavedProblem | null }
-  | { type: 'solve'; problem: SavedProblem };
+  | { type: 'solve'; problem: SavedProblem }
+  | { type: 'generate' };
 
 export function CustomProblemPage() {
   const [view, setView] = useState<View>({ type: 'list' });
@@ -31,6 +33,15 @@ export function CustomProblemPage() {
   const refresh = useCallback(() => {
     setProblems(loadProblems());
   }, []);
+
+  if (view.type === 'generate') {
+    return (
+      <YakuGenerator
+        onGenerated={(p) => setView({ type: 'editor', initial: p })}
+        onCancel={() => setView({ type: 'list' })}
+      />
+    );
+  }
 
   if (view.type === 'editor') {
     return (
@@ -87,6 +98,7 @@ export function CustomProblemPage() {
     <CustomProblemList
       problems={problems}
       onCreate={() => setView({ type: 'editor', initial: null })}
+      onGenerate={() => setView({ type: 'generate' })}
       onEdit={(p) => setView({ type: 'editor', initial: p })}
       onDuplicate={(p) => setView({ type: 'editor', initial: { ...p, id: '', name: p.name + ' のコピー' } })}
       onSolve={(p) => setView({ type: 'solve', problem: p })}
@@ -107,21 +119,34 @@ export function CustomProblemPage() {
 interface ListProps {
   problems: SavedProblem[];
   onCreate: () => void;
+  onGenerate: () => void;
   onEdit: (p: SavedProblem) => void;
   onDuplicate: (p: SavedProblem) => void;
   onSolve: (p: SavedProblem) => void;
   onDelete: (p: SavedProblem) => void;
 }
 
-function CustomProblemList({ problems, onCreate, onEdit, onDuplicate, onSolve, onDelete }: ListProps) {
+function CustomProblemList({ problems, onCreate, onGenerate, onEdit, onDuplicate, onSolve, onDelete }: ListProps) {
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
         <h2 style={{ fontSize: 18, color: '#2c3e50', margin: 0 }}>
           自作問題 ({problems.length})
         </h2>
         <button onClick={onCreate} style={listBtnStyle('primary')}>＋ 新規作成</button>
       </div>
+
+      <button
+        onClick={onGenerate}
+        style={{
+          width: '100%', padding: '10px 14px', marginBottom: 16,
+          borderRadius: 6, border: '1px solid #a5d6a7',
+          background: '#e8f5e9', cursor: 'pointer',
+          fontSize: 14, fontWeight: 'bold', color: '#2e7d32',
+        }}
+      >
+        🎲 役から自動生成
+      </button>
 
       {problems.length === 0 ? (
         <div style={{
@@ -254,6 +279,14 @@ function CustomProblemEditor({ initial, onCancel, onSaved, onSolve }: EditorProp
   const [isRiichi, setIsRiichi] = useState(initial?.condition.isRiichi ?? false);
   const [isDoubleRiichi, setIsDoubleRiichi] = useState(initial?.condition.isDoubleRiichi ?? false);
   const [isIppatsu, setIsIppatsu] = useState(initial?.condition.isIppatsu ?? false);
+  const [isHaitei, setIsHaitei] = useState(initial?.condition.isHaitei ?? false);
+  const [isHoutei, setIsHoutei] = useState(initial?.condition.isHoutei ?? false);
+  const [isChankan, setIsChankan] = useState(initial?.condition.isChankan ?? false);
+  const [isTenhou, setIsTenhou] = useState(initial?.condition.isTenhou ?? false);
+  const [isChihou, setIsChihou] = useState(initial?.condition.isChihou ?? false);
+  const [doraCount, setDoraCount] = useState(initial?.condition.doraCount ?? 0);
+  const [uraDoraCount, setUraDoraCount] = useState(initial?.condition.uraDoraCount ?? 0);
+  const [redDoraCount, setRedDoraCount] = useState(initial?.condition.redDoraCount ?? 0);
 
   // アガリ牌は最後に追加した牌を自動指定。値ベースで保持。
   const [agariTile, setAgariTileValue] = useState<Tile | null>(
@@ -393,10 +426,10 @@ function CustomProblemEditor({ initial, onCancel, onSaved, onSolve }: EditorProp
     return {
       agariType, agariTile, roundWind, seatWind,
       isRiichi, isDoubleRiichi, isIppatsu,
-      isRinshan: false, isChankan: false,
-      isHaitei: false, isHoutei: false,
-      isTenhou: false, isChihou: false,
-      doraCount: 0, uraDoraCount: 0, redDoraCount: 0,
+      isRinshan: false, isChankan,
+      isHaitei, isHoutei,
+      isTenhou, isChihou,
+      doraCount, uraDoraCount, redDoraCount,
     };
   };
 
@@ -673,6 +706,113 @@ function CustomProblemEditor({ initial, onCancel, onSaved, onSolve }: EditorProp
             >
               一発
             </button>
+            <button
+              onClick={() => {
+                if (agariType === 'tsumo') {
+                  setIsHaitei(!isHaitei);
+                  if (!isHaitei) setIsHoutei(false);
+                  resetCalcState();
+                }
+              }}
+              style={{
+                ...toggleBtnStyle(isHaitei),
+                opacity: agariType === 'tsumo' ? 1 : 0.35,
+                cursor: agariType === 'tsumo' ? 'pointer' : 'default',
+              }}
+            >
+              海底
+            </button>
+            <button
+              onClick={() => {
+                if (agariType === 'ron') {
+                  setIsHoutei(!isHoutei);
+                  if (!isHoutei) setIsHaitei(false);
+                  resetCalcState();
+                }
+              }}
+              style={{
+                ...toggleBtnStyle(isHoutei),
+                opacity: agariType === 'ron' ? 1 : 0.35,
+                cursor: agariType === 'ron' ? 'pointer' : 'default',
+              }}
+            >
+              河底
+            </button>
+            <button
+              onClick={() => {
+                if (agariType === 'ron') {
+                  setIsChankan(!isChankan);
+                  resetCalcState();
+                }
+              }}
+              style={{
+                ...toggleBtnStyle(isChankan),
+                opacity: agariType === 'ron' ? 1 : 0.35,
+                cursor: agariType === 'ron' ? 'pointer' : 'default',
+              }}
+            >
+              槍槓
+            </button>
+            <button
+              onClick={() => {
+                setIsTenhou(!isTenhou);
+                if (!isTenhou) setIsChihou(false);
+                resetCalcState();
+              }}
+              style={toggleBtnStyle(isTenhou)}
+            >
+              天和
+            </button>
+            <button
+              onClick={() => {
+                setIsChihou(!isChihou);
+                if (!isChihou) setIsTenhou(false);
+                resetCalcState();
+              }}
+              style={toggleBtnStyle(isChihou)}
+            >
+              地和
+            </button>
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 13, color: '#7f8c8d', marginBottom: 4 }}>ドラ</div>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 14 }}>
+              ドラ
+              <select
+                value={doraCount}
+                onChange={e => { setDoraCount(Number(e.target.value)); resetCalcState(); }}
+                style={{ padding: '4px 8px', fontSize: 14, borderRadius: 4, border: '1px solid #bdc3c7' }}
+              >
+                {[0,1,2,3,4,5,6,7,8].map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 14 }}>
+              裏ドラ
+              <select
+                value={uraDoraCount}
+                onChange={e => { setUraDoraCount(Number(e.target.value)); resetCalcState(); }}
+                style={{
+                  padding: '4px 8px', fontSize: 14, borderRadius: 4, border: '1px solid #bdc3c7',
+                  opacity: (isRiichi || isDoubleRiichi) ? 1 : 0.35,
+                }}
+                disabled={!isRiichi && !isDoubleRiichi}
+              >
+                {[0,1,2,3,4,5,6,7,8].map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 14 }}>
+              赤ドラ
+              <select
+                value={redDoraCount}
+                onChange={e => { setRedDoraCount(Number(e.target.value)); resetCalcState(); }}
+                style={{ padding: '4px 8px', fontSize: 14, borderRadius: 4, border: '1px solid #bdc3c7' }}
+              >
+                {[0,1,2,3].map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </label>
           </div>
         </div>
       </div>
@@ -722,6 +862,151 @@ function CustomProblemEditor({ initial, onCancel, onSaved, onSolve }: EditorProp
           <div style={{ fontSize: 13, color: '#2c3e50' }}>
             <b>役:</b> {calcResult.yaku.map(y => `${y.name}(${y.han})`).join(' / ')}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =========================================================================
+// Yaku generator
+// =========================================================================
+
+interface YakuOption {
+  label: string;
+  strategy: string;
+}
+
+interface YakuGroup {
+  title: string;
+  yaku: YakuOption[];
+}
+
+const YAKU_GROUPS: YakuGroup[] = [
+  {
+    title: '1翻',
+    yaku: [
+      { label: '断么九', strategy: 'tanyao' },
+      { label: '平和', strategy: 'pinfu' },
+    ],
+  },
+  {
+    title: '2翻',
+    yaku: [
+      { label: '七対子', strategy: 'chiitoitsu' },
+      { label: '対々和', strategy: 'toitoi' },
+      { label: '三色同順', strategy: 'sanshoku' },
+      { label: '一気通貫', strategy: 'ittsu' },
+      { label: '三暗刻', strategy: 'sananko' },
+      { label: '三色同刻', strategy: 'sanshoku_doko' },
+      { label: '小三元', strategy: 'shosangen' },
+      { label: '混全帯么九', strategy: 'chanta' },
+      { label: '混老頭', strategy: 'honroutou' },
+    ],
+  },
+  {
+    title: '3翻以上',
+    yaku: [
+      { label: '混一色', strategy: 'honitsu' },
+      { label: '純全帯么九', strategy: 'junchan' },
+      { label: '二盃口', strategy: 'ryanpeikou' },
+      { label: '清一色', strategy: 'chinitsu' },
+      { label: '三槓子', strategy: 'sankantsu' },
+    ],
+  },
+  {
+    title: '役満',
+    yaku: [
+      { label: '国士無双', strategy: 'kokushi' },
+      { label: '四暗刻', strategy: 'suuanko' },
+      { label: '大三元', strategy: 'daisangen' },
+      { label: '字一色', strategy: 'tsuuiiso' },
+      { label: '緑一色', strategy: 'ryuuiiso' },
+      { label: '清老頭', strategy: 'chinroutou' },
+      { label: '大四喜', strategy: 'daisuushii' },
+      { label: '小四喜', strategy: 'shousuushii' },
+      { label: '九蓮宝燈', strategy: 'chuurenpoutou' },
+      { label: '四槓子', strategy: 'suukantsu' },
+    ],
+  },
+];
+
+function YakuGenerator({ onGenerated, onCancel }: {
+  onGenerated: (p: SavedProblem) => void;
+  onCancel: () => void;
+}) {
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSelect = (yaku: YakuOption) => {
+    setError(null);
+    const question = generateFromYaku(yaku.strategy);
+    if (!question) {
+      setError(`「${yaku.label}」の手牌を生成できませんでした。もう一度お試しください。`);
+      return;
+    }
+    const now = new Date().toISOString();
+    onGenerated({
+      id: '',
+      name: yaku.label,
+      createdAt: now,
+      updatedAt: now,
+      closedTiles: question.closedTiles,
+      openMelds: question.openMelds,
+      condition: question.condition,
+    });
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <h2 style={{ fontSize: 18, color: '#2c3e50', margin: 0 }}>役から自動生成</h2>
+        <button onClick={onCancel} style={listBtnStyle('secondary')}>← 一覧に戻る</button>
+      </div>
+
+      <div style={{
+        padding: '10px 14px', marginBottom: 16,
+        background: '#e8f5e9', borderRadius: 8, border: '1px solid #a5d6a7',
+        fontSize: 13, color: '#2e7d32', lineHeight: 1.6,
+      }}>
+        練習したい役を選択すると、その役を含む手牌を自動生成します。<br />
+        生成後に編集・保存できます。
+      </div>
+
+      {YAKU_GROUPS.map(group => (
+        <div key={group.title} style={{ marginBottom: 14 }}>
+          <div style={{
+            fontSize: 13, fontWeight: 'bold', color: '#7f8c8d',
+            marginBottom: 6, paddingBottom: 4,
+            borderBottom: '1px solid #e0e0e0',
+          }}>
+            {group.title}
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {group.yaku.map(y => (
+              <button
+                key={y.label}
+                onClick={() => handleSelect(y)}
+                style={{
+                  padding: '8px 14px', fontSize: 14,
+                  background: '#fff', color: '#2c3e50',
+                  border: '1px solid #bdc3c7', borderRadius: 6,
+                  cursor: 'pointer', fontWeight: 'bold',
+                }}
+              >
+                {y.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {error && (
+        <div style={{
+          background: '#fdf2f2', border: '1px solid #e74c3c',
+          borderRadius: 6, padding: 12, color: '#c0392b',
+          fontSize: 14, marginTop: 14,
+        }}>
+          {error}
         </div>
       )}
     </div>

@@ -1,39 +1,27 @@
-import { useState, useCallback } from 'react';
+import { Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
 import { QuizPage } from './pages/QuizPage';
-import { FuRulePage } from './pages/FuRulePage';
-import { ScoreRulePage } from './pages/ScoreRulePage';
+import { CertificationPage } from './pages/CertificationPage';
 import { CustomProblemPage } from './pages/CustomProblemPage';
 import { LearningLogPage } from './pages/LearningLogPage';
+import { ReferencePage } from './pages/ReferencePage';
+import { SettingsPage } from './pages/SettingsPage';
+import { TermsPage } from './pages/TermsPage';
+import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
 import { useViewport } from './utils/useViewport';
 
-type Page = 'quiz' | 'custom' | 'log' | 'fu' | 'score';
-
-const TABS: { key: Page; label: string }[] = [
-  { key: 'quiz', label: 'クイズ' },
-  { key: 'custom', label: '自作' },
-  { key: 'log', label: '成績' },
-  { key: 'fu', label: '符計算' },
-  { key: 'score', label: '点数' },
+const TABS: { path: string; match: string; label: string }[] = [
+  { path: '/quiz/normal', match: '/quiz', label: 'クイズ' },
+  { path: '/custom', match: '/custom', label: '自作' },
+  { path: '/log', match: '/log', label: '成績' },
+  { path: '/reference/fu', match: '/reference', label: '早見表' },
+  { path: '/settings', match: '/settings', label: '設定' },
 ];
 
 export default function App() {
-  const [page, setPage] = useState<Page>('quiz');
-  const [weaknessMode, setWeaknessMode] = useState(false);
   const { isMobile } = useViewport();
+  const location = useLocation();
 
-  const handleStartWeakness = useCallback(() => {
-    setWeaknessMode(true);
-    setPage('quiz');
-  }, []);
-
-  const handleExitWeakness = useCallback(() => {
-    setWeaknessMode(false);
-  }, []);
-
-  const handlePageChange = useCallback((p: Page) => {
-    if (p !== 'quiz') setWeaknessMode(false);
-    setPage(p);
-  }, []);
+  const activeTab = (match: string) => location.pathname.startsWith(match);
 
   return (
     <div style={{
@@ -48,7 +36,9 @@ export default function App() {
         marginTop: 0,
         color: '#2c3e50',
       }}>
-        麻雀点数計算
+        <Link to="/" style={{ color: '#2c3e50', textDecoration: 'none' }}>
+          麻雀点数計算
+        </Link>
       </h1>
 
       <nav style={{
@@ -57,38 +47,44 @@ export default function App() {
         borderBottom: '2px solid #4caf50',
       }}>
         {TABS.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => handlePageChange(tab.key)}
+          <Link
+            key={tab.path}
+            to={tab.path}
             style={{
               flex: 1,
               padding: isMobile ? '8px 2px' : '10px 4px',
               fontSize: isMobile ? 11 : 13,
               fontWeight: 'bold',
-              border: 'none', cursor: 'pointer',
-              background: page === tab.key ? '#4caf50' : '#fff',
-              color: page === tab.key ? '#fff' : '#2e7d32',
+              border: 'none',
+              textDecoration: 'none',
+              textAlign: 'center',
+              background: activeTab(tab.match) ? '#4caf50' : '#fff',
+              color: activeTab(tab.match) ? '#fff' : '#2e7d32',
               borderRadius: '6px 6px 0 0',
               borderRight: '1px solid #c5e1a5',
               transition: 'background 0.15s',
             }}
           >
             {tab.label}
-          </button>
+          </Link>
         ))}
       </nav>
 
-      {page === 'quiz' && (
-        <QuizPage
-          weaknessMode={weaknessMode}
-          onExitWeakness={handleExitWeakness}
-          onStartWeakness={handleStartWeakness}
-        />
-      )}
-      {page === 'custom' && <CustomProblemPage />}
-      {page === 'log' && <LearningLogPage onStartWeakness={handleStartWeakness} />}
-      {page === 'fu' && <FuRulePage />}
-      {page === 'score' && <ScoreRulePage />}
+      <Routes>
+        <Route path="/" element={<Navigate to="/quiz/normal" replace />} />
+        <Route path="/quiz/weakness" element={<QuizPage weaknessMode />} />
+        <Route path="/quiz/cert" element={<CertificationPage />} />
+        <Route path="/quiz/cert/:levelId" element={<CertificationPage />} />
+        <Route path="/quiz/:difficulty" element={<QuizPage />} />
+        <Route path="/custom" element={<CustomProblemPage />} />
+        <Route path="/log" element={<LearningLogPage />} />
+        <Route path="/reference" element={<Navigate to="/reference/fu" replace />} />
+        <Route path="/reference/:tab" element={<ReferencePage />} />
+        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/privacy" element={<PrivacyPolicyPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </div>
   );
 }

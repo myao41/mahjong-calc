@@ -31,19 +31,19 @@ export function FuRulePage() {
         符計算ルール
       </h2>
       <div style={{ fontSize: 12, color: '#7f8c8d', marginBottom: 16 }}>
-        M-League公式ルール 第3条 得点計算(1) 準拠
+        M-League公式ルール 第3条 得点計算(1) 準拠：https://m-league.jp/about/
       </div>
 
       <Section title="基本符">
         <RuleRow name="副底（フーテイ）" value="20符" note="全てのアガリの基本点" />
-        <RuleRow name="門前清栄和加符" value="+10符" note="門前で出アガリ（ロン）した場合" />
-        <RuleRow name="ツモ符" value="+2符" note="ツモアガリ。ただし平和ツモは加算しない" />
+        <RuleRow name="門前清栄和加符" value="+10符" note="門前でロンした場合" />
+        <RuleRow name="ツモ符" value="+2符" note="ツモアガリ（ただし、平和ツモは加算しない）" />
       </Section>
 
       <Section title="待ち符">
         <RuleRow name="辺張（ペンチャン）待ち" value="+2符" />
         <RuleRow name="嵌張（カンチャン）待ち" value="+2符" />
-        <RuleRow name="単騎（タンキ）待ち" value="+2符" />
+        <RuleRow name="単騎待ち" value="+2符" />
         <RuleRow name="両面・シャンポン待ち" value="0符" />
       </Section>
 
@@ -53,15 +53,14 @@ export function FuRulePage() {
             <tr>
               <th style={{ ...tableHeaderStyle, textAlign: 'left' }}>面子</th>
               <th style={tableHeaderStyle}>中張牌<br /><span style={{ fontWeight: 'normal', fontSize: 11 }}>(2-8)</span></th>
-              <th style={tableHeaderStyle}>老頭牌<br /><span style={{ fontWeight: 'normal', fontSize: 11 }}>(1・9)</span></th>
-              <th style={tableHeaderStyle}>字牌<br /><span style={{ fontWeight: 'normal', fontSize: 11 }}>(風・三元)</span></th>
+              <th style={tableHeaderStyle}>幺九牌<br /><span style={{ fontWeight: 'normal', fontSize: 11 }}>(1・9・字牌)</span></th>
             </tr>
           </thead>
           <tbody>
-            <MentsuFuRow label="明刻" mid={2} terminal={4} honor={4} />
-            <MentsuFuRow label="暗刻" mid={4} terminal={8} honor={8} />
-            <MentsuFuRow label="明槓" mid={8} terminal={16} honor={16} />
-            <MentsuFuRow label="暗槓" mid={16} terminal={32} honor={32} />
+            <MentsuFuRow label="明刻" mid={2} yaochu={4} />
+            <MentsuFuRow label="暗刻" mid={4} yaochu={8} />
+            <MentsuFuRow label="明槓" mid={8} yaochu={16} />
+            <MentsuFuRow label="暗槓" mid={16} yaochu={32} />
           </tbody>
         </table>
       </Section>
@@ -69,7 +68,7 @@ export function FuRulePage() {
       <Section title="雀頭の符">
         <RuleRow name="中張牌（2-8）" value="0符" />
         <RuleRow name="老頭牌（1・9）" value="0符" />
-        <RuleRow name="客風牌（場風でも自風でもない）" value="0符" />
+        <RuleRow name="客風牌（オタ風）" value="0符" />
         <RuleRow name="場風牌" value="+2符" />
         <RuleRow name="自風牌" value="+2符" />
         <RuleRow name="連風牌（場風＝自風）" value="+2符" note="連風牌は+2符（+4符ではない）" />
@@ -77,8 +76,8 @@ export function FuRulePage() {
       </Section>
 
       <Section title="特殊符">
-        <RuleRow name="平和ツモ" value="20符固定" note="副底のみ。ツモ符は加算しない" />
-        <RuleRow name="平和ロン" value="30符固定" note="副底20+門前ロン10。他の符は加算しない" />
+        <RuleRow name="平和ツモ" value="20符固定" note="副底のみ（ツモ符は加算しない）" />
+        <RuleRow name="平和ロン" value="30符固定" note="副底20+門前ロン10（他の符は加算しない）" />
         <RuleRow name="七対子" value="25符固定" note="他の符計算は適用しない" />
         <RuleRow name="副露時の最低保証" value="30符" note="副底20のみの場合は10符加算" />
       </Section>
@@ -133,15 +132,14 @@ function RuleRow({ name, value, note }: { name: string; value: string; note?: st
   );
 }
 
-function MentsuFuRow({ label, mid, terminal, honor }: {
-  label: string; mid: number; terminal: number; honor: number;
+function MentsuFuRow({ label, mid, yaochu }: {
+  label: string; mid: number; yaochu: number;
 }) {
   return (
     <tr>
       <td style={{ ...cellStyle, textAlign: 'left', fontWeight: 'bold', color: '#2c3e50' }}>{label}</td>
       <td style={{ ...cellStyle, color: '#e65100', fontWeight: 'bold' }}>{mid}符</td>
-      <td style={{ ...cellStyle, color: '#e65100', fontWeight: 'bold' }}>{terminal}符</td>
-      <td style={{ ...cellStyle, color: '#e65100', fontWeight: 'bold' }}>{honor}符</td>
+      <td style={{ ...cellStyle, color: '#e65100', fontWeight: 'bold' }}>{yaochu}符</td>
     </tr>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import type { QuizQuestion, ScoreResult } from '../types';
 import { windName } from '../utils/tiles';
 import { TileButton } from './TileButton';
@@ -10,9 +10,9 @@ import type { Tile } from '../types';
 
 /** 鳴いた牌の最左を90度横向きに表示するヘルパー */
 function RotatedTile({ tile, isMobile }: { tile: Tile; isMobile: boolean }) {
-  // 新スプライト (3:4 比率) に合わせる
+  // スプライト (56:75 比率) に合わせる
   const tileW = isMobile ? 24 : 38;
-  const tileH = isMobile ? 32 : 51;
+  const tileH = Math.round(tileW * 75 / 56);
   return (
     <div style={{
       width: tileH,
@@ -38,6 +38,9 @@ interface Props {
   title?: string;
   onAnswered?: (user: UserAnswer, isCorrect: boolean) => void;
   onSkip?: () => void;
+  timeLimit?: number;
+  answerMode?: 'simple' | 'normal';
+  honba?: number;
 }
 
 function Stepper({ value, onChange, min = 0, max = 99, step = 1 }: {
@@ -77,33 +80,99 @@ const stepperBtnStyle: React.CSSProperties = {
   color: '#2c3e50', userSelect: 'none',
 };
 
-const inputStyle: React.CSSProperties = {
-  width: 90, padding: '8px 10px', borderRadius: 4,
-  border: '1px solid #bdc3c7', fontSize: 16, textAlign: 'center',
+function ScoreStepper({ value, onChange }: {
+  value: string; onChange: (v: string) => void;
+}) {
+  const n = Number(value) || 0;
+  const set = (v: number) => onChange(String(Math.max(0, v)));
+  return (
+    <div style={{ display: 'inline-flex', alignItems: 'stretch', height: 40 }}>
+      <button
+        type="button"
+        onClick={() => set(n - 1000)}
+        style={{ ...scoreStepBtnStyle, width: 38, borderRadius: '4px 0 0 4px' }}
+      ><span style={{ fontSize: 9 }}>−1000</span></button>
+      <button
+        type="button"
+        onClick={() => set(n - 100)}
+        style={{ ...scoreStepBtnStyle, width: 38, borderLeft: 'none', borderRadius: 0 }}
+      ><span style={{ fontSize: 10 }}>−100</span></button>
+      <input
+        type="number"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        style={{
+          width: 64, textAlign: 'center', fontSize: 16, fontWeight: 'bold',
+          border: '1px solid #bdc3c7', borderLeft: 'none', borderRight: 'none',
+          outline: 'none', background: '#fff',
+          WebkitAppearance: 'none', MozAppearance: 'textfield',
+        }}
+      />
+      <button
+        type="button"
+        onClick={() => set(n + 100)}
+        style={{ ...scoreStepBtnStyle, width: 38, borderLeft: 'none', borderRadius: 0 }}
+      ><span style={{ fontSize: 10 }}>+100</span></button>
+      <button
+        type="button"
+        onClick={() => set(n + 1000)}
+        style={{ ...scoreStepBtnStyle, width: 38, borderLeft: 'none', borderRadius: '0 4px 4px 0' }}
+      ><span style={{ fontSize: 9 }}>+1000</span></button>
+    </div>
+  );
+}
+
+const scoreStepBtnStyle: React.CSSProperties = {
+  border: '1px solid #bdc3c7',
+  background: '#f0f0f0', cursor: 'pointer', fontWeight: 'bold',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  color: '#2c3e50', userSelect: 'none', padding: 0,
 };
 
-export function QuizSolver({ question, onNext, nextLabel = '次の問題', title, onAnswered, onSkip }: Props) {
+export function QuizSolver({ question, onNext, nextLabel = '次の問題', title, onAnswered, onSkip, timeLimit = 0, answerMode = 'normal', honba = 0 }: Props) {
   const { isMobile } = useViewport();
   const [phase, setPhase] = useState<Phase>('answering');
   const [inputHan, setInputHan] = useState('0');
   const [inputFu, setInputFu] = useState('20');
-  const [inputScore1, setInputScore1] = useState('');
-  const [inputScore2, setInputScore2] = useState('');
+  const [inputScore1, setInputScore1] = useState('0');
+  const [inputScore2, setInputScore2] = useState('0');
+  const [showTenpaneHelp, setShowTenpaneHelp] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
+  const [remainingTime, setRemainingTime] = useState(timeLimit);
+  const handleSubmitRef = useRef<() => void>(() => {});
 
   // Reset when question changes
   useEffect(() => {
     setPhase('answering');
     setInputHan('0');
     setInputFu('20');
-    setInputScore1('');
-    setInputScore2('');
-  }, [question]);
+    setInputScore1('0');
+    setInputScore2('0');
+    setShowTenpaneHelp(false);
+    setTimedOut(false);
+    setRemainingTime(timeLimit);
+  }, [question, timeLimit]);
 
   const { condition, answer } = question;
   const isDealer = condition.seatWind === 1;
   const isTsumo = condition.agariType === 'tsumo';
+  const isSimple = answerMode === 'simple';
+
+  // Honba-adjusted expected scores
+  const expectedRon = (answer.ronPayment ?? 0) + honba * 300;
+  const expectedTsumoAll = (answer.tsumoAllPayment ?? 0) + honba * 100;
+  const expectedTsumoChild = (answer.tsumoChildPayment ?? 0) + honba * 100;
+  const expectedTsumoDealer = (answer.tsumoDealerPayment ?? 0) + honba * 100;
+
+  const honbaPayments = (() => {
+    if (honba === 0) return answer.payments;
+    if (answer.agariType === 'ron') return `${expectedRon}点`;
+    if (answer.isDealer) return `${expectedTsumoAll}点 オール`;
+    return `${expectedTsumoChild}/${expectedTsumoDealer}点`;
+  })();
 
   const handleSubmit = useCallback(() => {
+    if (phase !== 'answering') return;
     const a = answer;
     const user: UserAnswer = {
       han: Number(inputHan),
@@ -116,18 +185,40 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
 
     let scoreOk = false;
     if (a.agariType === 'ron') {
-      scoreOk = user.score1 === a.ronPayment;
+      scoreOk = user.score1 === expectedRon;
     } else if (a.isDealer) {
-      scoreOk = user.score1 === a.tsumoAllPayment;
+      scoreOk = user.score1 === expectedTsumoAll;
     } else {
-      scoreOk = user.score1 === a.tsumoChildPayment &&
-                user.score2 === a.tsumoDealerPayment;
+      scoreOk = user.score1 === expectedTsumoChild &&
+                user.score2 === expectedTsumoDealer;
     }
 
-    const allCorrect = hanOk && fuOk && scoreOk;
+    const allCorrect = isSimple ? scoreOk : (hanOk && fuOk && scoreOk);
     setPhase(allCorrect ? 'correct' : 'wrong');
     onAnswered?.(user, allCorrect);
-  }, [answer, inputHan, inputFu, inputScore1, inputScore2, onAnswered]);
+  }, [phase, answer, inputHan, inputFu, inputScore1, inputScore2, onAnswered, isSimple, expectedRon, expectedTsumoAll, expectedTsumoChild, expectedTsumoDealer]);
+
+  // Keep ref updated for timer callback
+  handleSubmitRef.current = handleSubmit;
+
+  // Countdown timer
+  useEffect(() => {
+    if (phase !== 'answering' || !timeLimit || timeLimit <= 0) return;
+
+    const interval = setInterval(() => {
+      setRemainingTime(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          setTimedOut(true);
+          setTimeout(() => handleSubmitRef.current(), 0);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [phase, timeLimit, question]);
 
   return (
     <div>
@@ -193,6 +284,10 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
           background: '#d35400', color: '#fff', padding: '2px 10px',
           borderRadius: 3, fontWeight: 'bold', fontSize: 14,
         }}>裏{condition.uraDoraCount}</span>}
+        {honba > 0 && <span style={{
+          background: '#6c5ce7', color: '#fff', padding: '2px 10px',
+          borderRadius: 3, fontWeight: 'bold', fontSize: 14,
+        }}>{honba}本場</span>}
       </div>
 
       {/* Hand display */}
@@ -202,7 +297,7 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
         marginBottom: 14,
         border: '1px solid #e0e0e0',
       }}>
-        <div style={{ fontSize: isMobile ? 13 : 15, color: '#7f8c8d', marginBottom: 6 }}>手牌</div>
+        {/* label removed */}
         {(() => {
           let agariIdx = -1;
           for (let j = 0; j < question.closedTiles.length; j++) {
@@ -265,6 +360,13 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
                   </div>
                 ))}
 
+                {hasMelds && !splitRow && (
+                  <>
+                    <div style={{ width: isMobile ? 8 : 12, flexShrink: 0 }} />
+                    {meldsEl}
+                  </>
+                )}
+
                 {agariTile && (
                   <>
                     <div style={{ width: isMobile ? 8 : 12, flexShrink: 0 }} />
@@ -273,21 +375,17 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
                       alignItems: 'center', flexShrink: 0,
                     }}>
                       <div style={{
-                        fontSize: isMobile ? 10 : 11,
-                        color: '#e67e22', fontWeight: 'bold',
-                        lineHeight: 1, marginBottom: 2,
+                        fontSize: isMobile ? 11 : 12,
+                        color: '#fff', fontWeight: 'bold',
+                        background: isTsumo ? '#16a085' : '#e74c3c',
+                        padding: '1px 6px',
+                        borderRadius: 3,
+                        lineHeight: 1.3, marginBottom: 6,
                       }}>
                         {isTsumo ? 'ツモ' : 'ロン'}
                       </div>
                       <TileButton tile={agariTile} />
                     </div>
-                  </>
-                )}
-
-                {hasMelds && !splitRow && (
-                  <>
-                    <div style={{ width: isMobile ? 8 : 12, flexShrink: 0 }} />
-                    {meldsEl}
                   </>
                 )}
               </div>
@@ -312,6 +410,39 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
         })()}
       </div>
 
+      {/* Timer bar */}
+      {phase === 'answering' && timeLimit > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{
+            display: 'flex', justifyContent: 'space-between',
+            alignItems: 'center', marginBottom: 4,
+          }}>
+            <span style={{
+              fontSize: 14, fontWeight: 'bold',
+              color: remainingTime <= timeLimit * 0.25 ? '#e74c3c'
+                   : remainingTime <= timeLimit * 0.5 ? '#f39c12'
+                   : '#27ae60',
+            }}>
+              残り {remainingTime}秒
+            </span>
+          </div>
+          <div style={{
+            width: '100%', height: 6, background: '#e0e0e0',
+            borderRadius: 3, overflow: 'hidden',
+          }}>
+            <div style={{
+              width: `${(remainingTime / timeLimit) * 100}%`,
+              height: '100%',
+              background: remainingTime <= timeLimit * 0.25 ? '#e74c3c'
+                        : remainingTime <= timeLimit * 0.5 ? '#f39c12'
+                        : '#27ae60',
+              borderRadius: 3,
+              transition: 'width 1s linear, background 0.3s',
+            }} />
+          </div>
+        </div>
+      )}
+
       {/* Answer input */}
       {phase === 'answering' && (
         <div style={{
@@ -321,55 +452,69 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
           border: '1px solid #e0e0e0',
         }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'center', fontSize: 16 }}>
-              <span style={{ flex: '0 0 auto' }}>翻数:</span>
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
-                <Stepper value={inputHan} onChange={setInputHan} min={0} max={13} />
-                <span style={{ color: '#7f8c8d', minWidth: 20 }}>翻</span>
-              </div>
-            </div>
+            {!isSimple && (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', fontSize: 16 }}>
+                  <span style={{ flex: '0 0 auto' }}>翻数:</span>
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+                    <Stepper value={inputHan} onChange={setInputHan} min={0} max={13} />
+                    <span style={{ color: '#7f8c8d', minWidth: 20 }}>翻</span>
+                  </div>
+                </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', fontSize: 16 }}>
-              <span style={{ flex: '0 0 auto' }}>符（繰り上がり前）:</span>
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
-                <Stepper value={inputFu} onChange={setInputFu} min={20} max={130} step={2} />
-                <span style={{ color: '#7f8c8d', minWidth: 20 }}>符</span>
-              </div>
-            </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', fontSize: 16 }}>
+                    <span style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      符(テンパネ前):
+                      <span
+                        onClick={() => setShowTenpaneHelp(v => !v)}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          width: 18, height: 18, borderRadius: '50%',
+                          background: showTenpaneHelp ? '#3498db' : '#bdc3c7',
+                          color: '#fff', fontSize: 11, cursor: 'pointer', lineHeight: 1,
+                        }}
+                      >?</span>
+                    </span>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+                      <Stepper value={inputFu} onChange={setInputFu} min={20} max={130} step={2} />
+                      <span style={{ color: '#7f8c8d', minWidth: 20 }}>符</span>
+                    </div>
+                  </div>
+                  {showTenpaneHelp && (
+                    <div style={{
+                      fontSize: 12, color: '#5d4037', background: '#f5f5f5',
+                      padding: '6px 10px', borderRadius: 4, marginTop: 6, lineHeight: 1.6,
+                    }}>
+                      テンパネ＝符を10の位に切り上げること（例: 32符→40符）
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
 
-            <div style={{ display: 'flex', alignItems: 'center', fontSize: 16 }}>
-              <span style={{ flex: '0 0 auto' }}>点数:</span>
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: isTsumo && !isDealer ? 'flex-start' : 'center', fontSize: 16 }}>
+              <span style={{ flex: '0 0 auto', ...(isTsumo && !isDealer ? { lineHeight: '40px' } : {}) }}>点数:</span>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {isTsumo && !isDealer ? (
                   <>
-                    <input
-                      type="number"
-                      value={inputScore1}
-                      onChange={e => setInputScore1(e.target.value)}
-                      style={inputStyle}
-                      placeholder="子払い"
-                    />
-                    <span>/</span>
-                    <input
-                      type="number"
-                      value={inputScore2}
-                      onChange={e => setInputScore2(e.target.value)}
-                      style={inputStyle}
-                      placeholder="親払い"
-                    />
-                    <span style={{ color: '#7f8c8d', minWidth: 20 }}>点</span>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+                      <span>子:</span>
+                      <ScoreStepper value={inputScore1} onChange={setInputScore1} />
+                      <span style={{ color: '#7f8c8d', minWidth: 20 }}>点</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+                      <span>親:</span>
+                      <ScoreStepper value={inputScore2} onChange={setInputScore2} />
+                      <span style={{ color: '#7f8c8d', minWidth: 20 }}>点</span>
+                    </div>
                   </>
                 ) : (
-                  <>
-                    <input
-                      type="number"
-                      value={inputScore1}
-                      onChange={e => setInputScore1(e.target.value)}
-                      style={inputStyle}
-                      placeholder={isTsumo ? 'オール' : '点数'}
-                    />
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+                    {isTsumo && isDealer && <span>各家:</span>}
+                    <ScoreStepper value={inputScore1} onChange={setInputScore1} />
                     <span style={{ color: '#7f8c8d', minWidth: 20 }}>点</span>
-                  </>
+                  </div>
                 )}
               </div>
             </div>
@@ -378,7 +523,9 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
           <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
             <button
               onClick={handleSubmit}
-              disabled={!inputHan || !inputFu || !inputScore1 || (isTsumo && !isDealer && !inputScore2)}
+              disabled={isSimple
+                ? (!Number(inputScore1) || (isTsumo && !isDealer && !Number(inputScore2)))
+                : (!Number(inputHan) || !Number(inputFu) || !Number(inputScore1) || (isTsumo && !isDealer && !Number(inputScore2)))}
               style={{
                 flex: 1, padding: '14px',
                 borderRadius: 8, border: 'none', fontSize: 18, fontWeight: 'bold',
@@ -412,6 +559,14 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
           background: phase === 'correct' ? '#f0fff4' : '#fdf2f2',
           border: `1px solid ${phase === 'correct' ? '#27ae60' : '#e74c3c'}`,
         }}>
+          {timedOut && (
+            <div style={{
+              textAlign: 'center', fontSize: 14, color: '#e67e22',
+              fontWeight: 'bold', marginBottom: 4,
+            }}>
+              ⏰ 時間切れ
+            </div>
+          )}
           <div style={{
             fontSize: 26, fontWeight: 'bold', textAlign: 'center', marginBottom: 12,
             color: phase === 'correct' ? '#27ae60' : '#e74c3c',
@@ -424,12 +579,13 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
             color: '#2c3e50', marginBottom: 4,
           }}>
             {answer.scoreString}
+            {honba > 0 && <span style={{ fontSize: 14, color: '#6c5ce7', marginLeft: 8 }}>({honba}本場)</span>}
           </div>
           <div style={{
             textAlign: 'center', fontSize: 20, color: '#e67e22',
             fontWeight: 'bold', marginBottom: 12,
           }}>
-            {answer.payments}
+            {honbaPayments}
           </div>
           <div style={{ textAlign: 'center', fontSize: 15, color: '#7f8c8d', marginBottom: 16 }}>
             {answer.han}翻 / {answer.fu}符（繰り上がり前: {answer.rawFu}）/
@@ -438,8 +594,8 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
 
           {phase === 'wrong' && (
             <>
-              {/* Hint */}
-              {(() => {
+              {/* Hint (normal mode only) */}
+              {!isSimple && (() => {
                 const hint = generateHint(question, {
                   han: inputHan, fu: inputFu,
                   score1: inputScore1, score2: inputScore2,
@@ -467,74 +623,79 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
                 <div style={{ fontSize: 15, fontWeight: 'bold', marginBottom: 8 }}>あなたの回答</div>
                 <table style={{ width: '100%', fontSize: 15, borderCollapse: 'collapse' }}>
                   <tbody>
-                    <AnswerRow label="翻数" yours={inputHan + '翻'} correct={answer.han + '翻'} ok={Number(inputHan) === answer.han} />
-                    <AnswerRow label="符" yours={inputFu + '符'} correct={answer.rawFu + '符'} ok={Number(inputFu) === answer.rawFu} />
+                    {!isSimple && (
+                      <>
+                        <AnswerRow label="翻数" yours={inputHan + '翻'} correct={answer.han + '翻'} ok={Number(inputHan) === answer.han} />
+                        <AnswerRow label="符" yours={inputFu + '符'} correct={answer.rawFu + '符'} ok={Number(inputFu) === answer.rawFu} />
+                      </>
+                    )}
                     <AnswerRow
                       label="点数"
                       yours={formatUserScore(inputScore1, inputScore2, isTsumo, isDealer)}
-                      correct={answer.payments}
-                      ok={scoreIsCorrect(answer, inputScore1, inputScore2)}
+                      correct={honbaPayments}
+                      ok={scoreIsCorrect(answer, inputScore1, inputScore2, honba)}
                     />
                   </tbody>
                 </table>
               </div>
 
-              {/* Yaku list */}
-              <div style={{
-                background: '#fff', borderRadius: 6, padding: 12, marginBottom: 14,
-                border: '1px solid #eee',
-              }}>
-                <div style={{ fontSize: 15, fontWeight: 'bold', marginBottom: 8 }}>役一覧</div>
-                {answer.yaku.map((y, i) => (
-                  <div key={i} style={{
-                    display: 'flex', justifyContent: 'space-between',
-                    padding: '3px 0', fontSize: 15,
-                  }}>
-                    <span>{y.name}</span>
-                    <span style={{ color: '#7f8c8d' }}>{y.han}翻</span>
-                  </div>
-                ))}
-                <div style={{
-                  borderTop: '1px solid #eee', marginTop: 6, paddingTop: 6,
-                  display: 'flex', justifyContent: 'space-between',
-                  fontSize: 16, fontWeight: 'bold',
-                }}>
-                  <span>合計</span>
-                  <span>{answer.han}翻</span>
-                </div>
-              </div>
-
-              {/* Fu breakdown */}
-              <div style={{
-                background: '#fff', borderRadius: 6, padding: 12, marginBottom: 14,
-                border: '1px solid #eee',
-              }}>
-                <div style={{ fontSize: 15, fontWeight: 'bold', marginBottom: 8 }}>符計算</div>
-                {answer.fuCalc.details.map((d, i) => (
-                  <div key={i} style={{
-                    display: 'flex', justifyContent: 'space-between',
-                    padding: '3px 0', fontSize: 15,
-                  }}>
-                    <span>{d.name}</span>
-                    <span style={{ color: '#7f8c8d' }}>{d.fu}符</span>
-                  </div>
-                ))}
-                <div style={{
-                  borderTop: '1px solid #eee', marginTop: 6, paddingTop: 6,
-                  fontSize: 15,
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>合計（繰り上がり前）</span>
-                    <span style={{ fontWeight: 'bold' }}>{answer.rawFu}符</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#7f8c8d' }}>
-                    <span>繰り上がり後</span>
-                    <span>{answer.fu}符</span>
-                  </div>
-                </div>
-              </div>
             </>
           )}
+
+          {/* Yaku list - shown on both correct and wrong */}
+          <div style={{
+            background: '#fff', borderRadius: 6, padding: 12, marginBottom: 14,
+            border: '1px solid #eee',
+          }}>
+            <div style={{ fontSize: 15, fontWeight: 'bold', marginBottom: 8 }}>役一覧</div>
+            {answer.yaku.map((y, i) => (
+              <div key={i} style={{
+                display: 'flex', justifyContent: 'space-between',
+                padding: '3px 0', fontSize: 15,
+              }}>
+                <span>{y.name}</span>
+                <span style={{ color: '#7f8c8d' }}>{y.han}翻</span>
+              </div>
+            ))}
+            <div style={{
+              borderTop: '1px solid #eee', marginTop: 6, paddingTop: 6,
+              display: 'flex', justifyContent: 'space-between',
+              fontSize: 16, fontWeight: 'bold',
+            }}>
+              <span>合計</span>
+              <span>{answer.han}翻</span>
+            </div>
+          </div>
+
+          {/* Fu breakdown - shown on both correct and wrong */}
+          <div style={{
+            background: '#fff', borderRadius: 6, padding: 12, marginBottom: 14,
+            border: '1px solid #eee',
+          }}>
+            <div style={{ fontSize: 15, fontWeight: 'bold', marginBottom: 8 }}>符計算</div>
+            {answer.fuCalc.details.map((d, i) => (
+              <div key={i} style={{
+                display: 'flex', justifyContent: 'space-between',
+                padding: '3px 0', fontSize: 15,
+              }}>
+                <span>{d.name}</span>
+                <span style={{ color: '#7f8c8d' }}>{d.fu}符</span>
+              </div>
+            ))}
+            <div style={{
+              borderTop: '1px solid #eee', marginTop: 6, paddingTop: 6,
+              fontSize: 15,
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>合計（繰り上がり前）</span>
+                <span style={{ fontWeight: 'bold' }}>{answer.rawFu}符</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#7f8c8d' }}>
+                <span>繰り上がり後</span>
+                <span>{answer.fu}符</span>
+              </div>
+            </div>
+          </div>
 
           {/* Detail score table - shown on both correct and wrong */}
           <div style={{
@@ -592,8 +753,9 @@ function formatUserScore(s1: string, s2: string, isTsumo: boolean, isDealer: boo
   return `${s1}/${s2}点`;
 }
 
-function scoreIsCorrect(answer: ScoreResult, s1: string, s2: string): boolean {
-  if (answer.agariType === 'ron') return Number(s1) === answer.ronPayment;
-  if (answer.isDealer) return Number(s1) === answer.tsumoAllPayment;
-  return Number(s1) === answer.tsumoChildPayment && Number(s2) === answer.tsumoDealerPayment;
+function scoreIsCorrect(answer: ScoreResult, s1: string, s2: string, honba: number = 0): boolean {
+  if (answer.agariType === 'ron') return Number(s1) === (answer.ronPayment ?? 0) + honba * 300;
+  if (answer.isDealer) return Number(s1) === (answer.tsumoAllPayment ?? 0) + honba * 100;
+  return Number(s1) === (answer.tsumoChildPayment ?? 0) + honba * 100 &&
+         Number(s2) === (answer.tsumoDealerPayment ?? 0) + honba * 100;
 }

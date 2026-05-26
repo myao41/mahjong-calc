@@ -34,12 +34,18 @@ export function saveProblem(p: SavedProblem): SavedProblem {
   if (idx >= 0) all[idx] = p;
   else all.push(p);
   saveAllProblems(all);
+  import('./cloudSync').then(m => m.pushCustomProblem(p)).catch(() => {});
   return p;
 }
 
 export function deleteProblem(id: string): void {
   const all = loadProblems().filter(p => p.id !== id);
   saveAllProblems(all);
+  import('./cloudSync').then(m => m.deleteCustomProblemCloud(id)).catch(() => {});
+}
+
+export function loadProblem(id: string): SavedProblem | null {
+  return loadProblems().find(p => p.id === id) ?? null;
 }
 
 export function generateId(): string {

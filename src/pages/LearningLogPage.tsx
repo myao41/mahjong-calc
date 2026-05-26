@@ -1,15 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   getStats, getCategoryRanking, clearAllRecords, getTodayStats,
   getWeeklyStats, getStatsByDifficulty,
   type Stats, type CategoryCount, type WeeklyData,
 } from '../utils/learningLog';
 
-interface Props {
-  onStartWeakness: () => void;
-}
-
-export function LearningLogPage({ onStartWeakness }: Props) {
+export function LearningLogPage() {
+  const navigate = useNavigate();
+  const onStartWeakness = useCallback(() => navigate('/quiz/weakness'), [navigate]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [todayStats, setTodayStats] = useState<Stats | null>(null);
   const [weekly, setWeekly] = useState<WeeklyData[]>([]);

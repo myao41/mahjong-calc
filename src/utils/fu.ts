@@ -81,15 +81,25 @@ export function calculateFuDetailed(
     fu += 2;
   }
 
+  const waitType = detectWaitType(decomp, condition.agariTile, isChiitoitsu);
+  const isShanponRon = waitType === 'shanpon' && condition.agariType === 'ron';
+  let shanponAdjusted = false;
+
   for (const m of decomp.mentsu) {
     const tile = m.tiles[0];
     const isYaochu = isTerminalOrHonor(tile);
     const tileLabel = tileDesc(tile);
 
     if (m.type === 'koutsu') {
+      let isEffectivelyOpen = m.isOpen;
+      if (!shanponAdjusted && isShanponRon && !m.isOpen &&
+          tile.suit === condition.agariTile.suit && tile.num === condition.agariTile.num) {
+        isEffectivelyOpen = true;
+        shanponAdjusted = true;
+      }
       let mentsuFu = isYaochu ? 4 : 2;
-      if (!m.isOpen) mentsuFu *= 2;
-      const label = `${m.isOpen ? '明' : '暗'}刻（${tileLabel}）`;
+      if (!isEffectivelyOpen) mentsuFu *= 2;
+      const label = `${isEffectivelyOpen ? '明' : '暗'}刻（${tileLabel}）`;
       details.push({ name: label, fu: mentsuFu });
       fu += mentsuFu;
     } else if (m.type === 'kantsu') {
@@ -121,7 +131,6 @@ export function calculateFuDetailed(
     }
   }
 
-  const waitType = detectWaitType(decomp, condition.agariTile, isChiitoitsu);
   if (waitType === 'kanchan' || waitType === 'penchan' || waitType === 'tanki') {
     details.push({ name: waitNames[waitType], fu: 2 });
     fu += 2;

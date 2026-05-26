@@ -1,25 +1,41 @@
 import { useState, useCallback, useEffect } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import type { QuizQuestion, Difficulty } from '../types';
 import { generateQuiz, generateWeaknessQuiz } from '../utils/quiz';
 import { QuizSolver } from '../components/QuizSolver';
 import { recordQuizAnswer, getCategoryRanking } from '../utils/learningLog';
 import type { CategoryCount } from '../utils/learningLog';
+import { loadSettings } from '../utils/settings';
 
 const difficultyOptions: { value: Difficulty; label: string; desc: string }[] = [
-  { value: 'easy', label: '初級', desc: '平和・タンヤオ中心' },
-  { value: 'normal', label: '中級', desc: '全役対象・鳴きあり' },
-  { value: 'hard', label: '上級', desc: '槓・珍しい役・ドラ' },
+  { value: 'easy', label: '初級', desc: '基本役' },
+  { value: 'normal', label: '中級', desc: '全役' },
+  { value: 'hard', label: '上級', desc: 'プロ試験対策' },
 ];
+
+const VALID_DIFFICULTIES = new Set<string>(['easy', 'normal', 'hard']);
+
+function generateHonbaCount(): number {
+  const r = Math.random();
+  if (r < 0.5) return 1;
+  if (r < 0.8) return 2;
+  return 3;
+}
 
 interface Props {
   weaknessMode?: boolean;
-  onExitWeakness?: () => void;
-  onStartWeakness?: () => void;
 }
 
-export function QuizPage({ weaknessMode, onExitWeakness, onStartWeakness }: Props) {
-  const [difficulty, setDifficulty] = useState<Difficulty>('normal');
+export function QuizPage({ weaknessMode }: Props) {
+  const { difficulty: diffParam } = useParams<{ difficulty: string }>();
+  const navigate = useNavigate();
+
+  const difficulty: Difficulty = VALID_DIFFICULTIES.has(diffParam ?? '')
+    ? (diffParam as Difficulty)
+    : 'normal';
+
   const [question, setQuestion] = useState<QuizQuestion | null>(null);
+  const [honbaCount, setHonbaCount] = useState(0);
   const [weaknessCategories, setWeaknessCategories] = useState<CategoryCount[]>([]);
   const [hasWeakness, setHasWeakness] = useState(false);
 
@@ -28,6 +44,10 @@ export function QuizPage({ weaknessMode, onExitWeakness, onStartWeakness }: Prop
   }, [weaknessMode]);
 
   const newQuestion = useCallback(() => {
+    const settings = loadSettings();
+    const useHonba = difficulty !== 'hard' && settings.honba;
+    setHonbaCount(useHonba ? generateHonbaCount() : 0);
+
     if (weaknessMode) {
       const cats = getCategoryRanking();
       setWeaknessCategories(cats);
@@ -45,9 +65,9 @@ export function QuizPage({ weaknessMode, onExitWeakness, onStartWeakness }: Prop
     }
   }, [question, difficulty, weaknessMode]);
 
-  const handleDifficultyChange = useCallback((d: Difficulty) => {
-    setDifficulty(d);
-  }, []);
+  const settings = loadSettings();
+  const effectiveAnswerMode = difficulty === 'hard' ? 'simple' as const : settings.answerMode;
+  const effectiveTimeLimit = settings.timeLimit;
 
   const topWeakness = weaknessCategories[0];
 
@@ -70,7 +90,7 @@ export function QuizPage({ weaknessMode, onExitWeakness, onStartWeakness }: Prop
             )}
           </div>
           <button
-            onClick={onExitWeakness}
+            onClick={() => navigate('/quiz/normal')}
             style={{
               padding: '6px 14px', borderRadius: 6,
               border: '1px solid #bdc3c7', background: '#fff',
@@ -82,59 +102,80 @@ export function QuizPage({ weaknessMode, onExitWeakness, onStartWeakness }: Prop
         </div>
       )}
 
-      <div style={{
-        display: 'flex', gap: 6, marginBottom: 14,
-        justifyContent: 'center', flexWrap: 'wrap',
-      }}>
-        {difficultyOptions.map(opt => (
-          <button
-            key={opt.value}
-            onClick={() => handleDifficultyChange(opt.value)}
-            style={{
-              flex: '0 1 auto',
-              padding: '8px 14px',
-              borderRadius: 6,
-              border: difficulty === opt.value ? '2px solid #3498db' : '1px solid #bdc3c7',
-              background: difficulty === opt.value ? '#eef5ff' : '#fff',
-              cursor: 'pointer',
-              fontSize: 14,
-              fontWeight: difficulty === opt.value ? 'bold' : 'normal',
-              color: difficulty === opt.value ? '#2980b9' : '#7f8c8d',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 2,
-            }}
-          >
-            <span>{opt.label}</span>
-            <span style={{ fontSize: 10, opacity: 0.8 }}>{opt.desc}</span>
-          </button>
-        ))}
+      {!weaknessMode && (
+        <div style={{
+          display: 'flex', gap: 6, marginBottom: 14,
+          justifyContent: 'center', flexWrap: 'wrap',
+        }}>
+          {difficultyOptions.map(opt => (
+            <Link
+              key={opt.value}
+              to={`/quiz/${opt.value}`}
+              style={{
+                flex: '1 1 0',
+                padding: '8px 14px',
+                borderRadius: 6,
+                border: difficulty === opt.value ? '2px solid #3498db' : '1px solid #bdc3c7',
+                background: difficulty === opt.value ? '#eef5ff' : '#fff',
+                cursor: 'pointer',
+                fontSize: 14,
+                fontWeight: difficulty === opt.value ? 'bold' : 'normal',
+                color: difficulty === opt.value ? '#2980b9' : '#7f8c8d',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 2,
+                textDecoration: 'none',
+              }}
+            >
+              <span>{opt.label}</span>
+              <span style={{ fontSize: 10, opacity: 0.8 }}>{opt.desc}</span>
+            </Link>
+          ))}
 
-        {!weaknessMode && hasWeakness && onStartWeakness && (
-          <button
-            onClick={onStartWeakness}
-            style={{
-              flex: '0 1 auto',
-              padding: '8px 14px',
-              borderRadius: 6,
-              border: '1px solid #bdc3c7',
-              background: '#fff',
-              cursor: 'pointer',
-              fontSize: 14,
-              fontWeight: 'normal',
-              color: '#7f8c8d',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 2,
-            }}
-          >
-            <span>苦手克服</span>
-            <span style={{ fontSize: 10, opacity: 0.8 }}>苦手分野を重点練習</span>
-          </button>
-        )}
-      </div>
+          {hasWeakness && (
+            <Link
+              to="/quiz/weakness"
+              style={{
+                flex: '1 1 0',
+                padding: '8px 14px',
+                borderRadius: 6,
+                border: '1px solid #bdc3c7',
+                background: '#fff',
+                cursor: 'pointer',
+                fontSize: 14,
+                fontWeight: 'normal',
+                color: '#7f8c8d',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textDecoration: 'none',
+              }}
+            >
+              苦手克服
+            </Link>
+          )}
+        </div>
+      )}
+
+      {!weaknessMode && (
+        <Link
+          to="/quiz/cert"
+          style={{
+            display: 'block',
+            width: '100%', padding: '10px 14px',
+            borderRadius: 6, border: '1px solid #ffe082',
+            background: '#fff8e1', cursor: 'pointer',
+            fontSize: 14, fontWeight: 'bold', color: '#e65100',
+            marginBottom: 14,
+            textDecoration: 'none',
+            textAlign: 'center',
+            boxSizing: 'border-box',
+          }}
+        >
+          🏆 検定モード
+        </Link>
+      )}
 
       {question && (
         <QuizSolver
@@ -142,6 +183,9 @@ export function QuizPage({ weaknessMode, onExitWeakness, onStartWeakness }: Prop
           onNext={newQuestion}
           onSkip={newQuestion}
           onAnswered={handleAnswered}
+          timeLimit={effectiveTimeLimit}
+          answerMode={effectiveAnswerMode}
+          honba={honbaCount}
         />
       )}
     </div>

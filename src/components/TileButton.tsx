@@ -1,5 +1,5 @@
 import type { Tile } from '../types';
-import tilesSprite from '../assets/tiles_v2.jpg';
+import tilesSprite from '../assets/tiles_v3.png';
 import { useViewport } from '../utils/useViewport';
 
 interface Props {
@@ -12,20 +12,18 @@ interface Props {
   disabled?: boolean;
 }
 
-// 新スプライト: 640x480, 9列 x 5行
+// スプライト: 504x375, 9列 x 5行, 各セル56x75（余白なし）
 // Row 0: 萬子 1-9 (col 0-8)
 // Row 1: 筒子 1-9
 // Row 2: 索子 1-9
 // Row 3: 字牌 (col 0-3: 東南西北, col 4: 空, col 5: 白, col 6: 發, col 7: 中, col 8: 空)
 // Row 4: 花牌 (使用しない)
+const SPRITE_W = 504;
+const SPRITE_H = 375;
 const SPRITE_COLS = 9;
 const SPRITE_ROWS = 5;
-const NATIVE_TILE_W = 640 / SPRITE_COLS; // ≈ 71.11
-const NATIVE_TILE_H = 480 / SPRITE_ROWS; // = 96
-// 各行の絵柄下端は本来同じになるべきだが、新スプライトでは行ごとに最大8pxずれている。
-// 行0(萬)を基準に、他の行を下方向にシフトして絵柄下端を揃える。
-// 測定値: row底=[84,82,79,76] → 差分=[0,2,5,8]
-const ROW_BOTTOM_ALIGN = [0, 2, 5, 8, 0]; // 行4は花牌(未使用)なので0
+const NATIVE_TILE_W = SPRITE_W / SPRITE_COLS; // = 56
+const NATIVE_TILE_H = SPRITE_H / SPRITE_ROWS; // = 75
 
 function spriteCoord(tile: Tile): { col: number; row: number } {
   if (tile.suit === 'z') {
@@ -47,10 +45,10 @@ export function TileButton({ tile, onClick, selected, size = 'normal', widthPx, 
 
   const { col, row } = spriteCoord(tile);
   const scale = width / NATIVE_TILE_W;
-  const bgW = 640 * scale;
-  const bgH = 480 * scale;
+  const bgW = SPRITE_W * scale;
+  const bgH = SPRITE_H * scale;
   const bgX = -col * NATIVE_TILE_W * scale;
-  const bgY = (-row * NATIVE_TILE_H + ROW_BOTTOM_ALIGN[row]) * scale;
+  const bgY = -row * NATIVE_TILE_H * scale;
 
   return (
     <div

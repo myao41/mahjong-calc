@@ -109,6 +109,7 @@ export function deleteRecord(id: string): void {
 
 export function clearAllRecords(): void {
   localStorage.removeItem(RECORDS_KEY);
+  import('./cloudSync').then(m => m.deleteAllLearningRecords()).catch(() => {});
 }
 
 // === 集計 ===
@@ -281,6 +282,9 @@ export function recordQuizAnswer(
   const all = getAllRecords();
   all.push(record);
   saveAllRecords(all);
+
+  // Cloud sync (fire and forget)
+  import('./cloudSync').then(m => m.pushLearningRecord(record)).catch(e => console.error('[cloud] push learning record failed:', e));
 
   return record;
 }
