@@ -112,7 +112,7 @@ export function SettingsPage() {
           </div>
         ) : !showAuthInfo ? (
           <div>
-            <div style={noteStyle}>ログインすると、学習データをクラウドに保存できます（予定）</div>
+            <div style={noteStyle}>ログインすると、学習データをクラウドに保存できます</div>
             <button
               onClick={() => setShowAuthInfo(true)}
               style={{
