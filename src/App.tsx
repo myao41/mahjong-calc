@@ -6,6 +6,7 @@ import { LearningLogPage } from './pages/LearningLogPage';
 import { ReferencePage } from './pages/ReferencePage';
 import { SettingsPage } from './pages/SettingsPage';
 import { AccountPage } from './pages/AccountPage';
+import { AboutPage } from './pages/AboutPage';
 import { TermsPage } from './pages/TermsPage';
 import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
 import { useViewport } from './utils/useViewport';
@@ -14,7 +15,7 @@ const TABS: { path: string; match: string; label: string }[] = [
   { path: '/quiz/normal', match: '/quiz', label: 'クイズ' },
   { path: '/custom', match: '/custom', label: '自作' },
   { path: '/log', match: '/log', label: '成績' },
-  { path: '/reference/fu', match: '/reference', label: '早見表' },
+  { path: '/reference/fu', match: '/reference', label: 'ルール' },
   { path: '/settings', match: '/settings', label: '設定' },
 ];
 
@@ -83,6 +84,7 @@ export default function App() {
         <Route path="/reference/:tab" element={<ReferencePage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/settings/account" element={<AccountPage />} />
+        <Route path="/about" element={<AboutPage />} />
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/privacy" element={<PrivacyPolicyPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

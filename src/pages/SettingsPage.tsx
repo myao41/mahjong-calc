@@ -213,12 +213,16 @@ export function SettingsPage() {
         marginTop: 24, padding: 16,
         background: '#f8f9fa', borderRadius: 8, border: '1px solid #e0e0e0',
       }}>
-        <div style={{ fontSize: 15, fontWeight: 'bold', color: '#2c3e50', marginBottom: 8 }}>
-          このアプリについて
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <div style={{ fontSize: 15, fontWeight: 'bold', color: '#2c3e50' }}>
+            このアプリについて
+          </div>
+          <Link to="/about" style={{ fontSize: 13, color: '#7f8c8d', textDecoration: 'none' }}>
+            詳しく見る &gt;
+          </Link>
         </div>
         <div style={{ fontSize: 13, color: '#7f8c8d', lineHeight: 1.8 }}>
-          麻雀の点数計算を反復練習できるWebアプリです。<br />
-          学習データはブラウザに保存されます。ログイン時はクラウドにも同期されます。
+          麻雀の点数計算を反復練習できるWebアプリです。
         </div>
         <div style={{ fontSize: 13, marginTop: 8, display: 'flex', gap: 12 }}>
           <a
