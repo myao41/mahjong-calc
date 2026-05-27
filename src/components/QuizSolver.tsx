@@ -651,22 +651,28 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
                   <>
                     {specialFuType ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', fontSize: 16 }}>
-                            <span style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: 4 }}>
-                              符(テンパネ前):
-                              <span
-                                onClick={() => setShowTenpaneHelp(v => !v)}
-                                style={{
-                                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                                  width: 18, height: 18, borderRadius: '50%',
-                                  background: showTenpaneHelp ? '#3498db' : '#bdc3c7',
-                                  color: '#fff', fontSize: 11, cursor: 'pointer', lineHeight: 1,
-                                }}
-                              >?</span>
-                            </span>
-                          </div>
+                        <div style={{ display: 'flex', alignItems: 'center', fontSize: 16 }}>
+                          <span style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            符(テンパネ前):
+                            <span
+                              onClick={() => setShowTenpaneHelp(v => !v)}
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                width: 18, height: 18, borderRadius: '50%',
+                                background: showTenpaneHelp ? '#3498db' : '#bdc3c7',
+                                color: '#fff', fontSize: 11, cursor: 'pointer', lineHeight: 1,
+                              }}
+                            >?</span>
+                          </span>
                         </div>
+                        {showTenpaneHelp && (
+                          <div style={{
+                            fontSize: 12, color: '#5d4037', background: '#f5f5f5',
+                            padding: '6px 10px', borderRadius: 4, lineHeight: 1.6,
+                          }}>
+                            テンパネ＝符を10の位に切り上げること（例: 32符→40符）
+                          </div>
+                        )}
                         <div style={{
                           fontSize: 13, color: '#e65100', background: '#fff8e1',
                           padding: '6px 10px', borderRadius: 4,
@@ -683,6 +689,63 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
                             ))}
                           </div>
                         </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', fontSize: 16 }}>
+                          <span style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            符(テンパネ前):
+                            <span
+                              onClick={() => setShowTenpaneHelp(v => !v)}
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                width: 18, height: 18, borderRadius: '50%',
+                                background: showTenpaneHelp ? '#3498db' : '#bdc3c7',
+                                color: '#fff', fontSize: 11, cursor: 'pointer', lineHeight: 1,
+                              }}
+                            >?</span>
+                          </span>
+                          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+                            {(() => {
+                              const hasAny = fuAgari !== null || fuWait !== null || fuHead !== null || fuMentsu !== null;
+                              const allFilled = fuAgari !== null && fuWait !== null && fuHead !== null && fuMentsu !== null;
+                              const parts = [
+                                '20',
+                                fuAgari !== null ? String(fuAgari) : '?',
+                                fuWait !== null ? String(fuWait) : '?',
+                                fuHead !== null ? String(fuHead) : '?',
+                                fuMentsu !== null ? String(fuMentsu) : '?',
+                              ];
+                              const partial = 20 + (fuAgari ?? 0) + (fuWait ?? 0) + (fuHead ?? 0) + (fuMentsu ?? 0);
+
+                              return (
+                                <>
+                                  {hasAny && (
+                                    <span style={{ fontSize: 12, color: '#7f8c8d', whiteSpace: 'nowrap' }}>
+                                      {parts.join('+')}=
+                                    </span>
+                                  )}
+                                  <div style={{
+                                    width: 140, height: 40, textAlign: 'center',
+                                    fontSize: hasAny ? 16 : 13,
+                                    fontWeight: hasAny ? 'bold' : 'normal',
+                                    border: '1px solid #bdc3c7', borderRadius: 4,
+                                    background: '#f5f5f5',
+                                    color: hasAny ? '#2c3e50' : '#7f8c8d',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  }}>
+                                    {!hasAny
+                                      ? '自動計算'
+                                      : allFilled
+                                        ? partial
+                                        : `${partial}+?`}
+                                  </div>
+                                </>
+                              );
+                            })()}
+                            <span style={{ color: '#7f8c8d', minWidth: 20 }}>符</span>
+                          </div>
+                        </div>
                         {showTenpaneHelp && (
                           <div style={{
                             fontSize: 12, color: '#5d4037', background: '#f5f5f5',
@@ -691,74 +754,6 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
                             テンパネ＝符を10の位に切り上げること（例: 32符→40符）
                           </div>
                         )}
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', fontSize: 16 }}>
-                            <span style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: 4 }}>
-                              符(テンパネ前):
-                              <span
-                                onClick={() => setShowTenpaneHelp(v => !v)}
-                                style={{
-                                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                                  width: 18, height: 18, borderRadius: '50%',
-                                  background: showTenpaneHelp ? '#3498db' : '#bdc3c7',
-                                  color: '#fff', fontSize: 11, cursor: 'pointer', lineHeight: 1,
-                                }}
-                              >?</span>
-                            </span>
-                            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
-                              {(() => {
-                                const hasAny = fuAgari !== null || fuWait !== null || fuHead !== null || fuMentsu !== null;
-                                const allFilled = fuAgari !== null && fuWait !== null && fuHead !== null && fuMentsu !== null;
-                                const parts = [
-                                  '20',
-                                  fuAgari !== null ? String(fuAgari) : '?',
-                                  fuWait !== null ? String(fuWait) : '?',
-                                  fuHead !== null ? String(fuHead) : '?',
-                                  fuMentsu !== null ? String(fuMentsu) : '?',
-                                ];
-                                const partial = 20 + (fuAgari ?? 0) + (fuWait ?? 0) + (fuHead ?? 0) + (fuMentsu ?? 0);
-
-                                return (
-                                  <>
-                                    {hasAny && (
-                                      <span style={{ fontSize: 12, color: '#7f8c8d', whiteSpace: 'nowrap' }}>
-                                        {parts.join('+')}=
-                                      </span>
-                                    )}
-                                    <div style={{
-                                      width: 140, height: 40, textAlign: 'center',
-                                      fontSize: hasAny ? 16 : 13,
-                                      fontWeight: hasAny ? 'bold' : 'normal',
-                                      border: '1px solid #bdc3c7', borderRadius: 4,
-                                      background: '#f5f5f5',
-                                      color: hasAny ? '#2c3e50' : '#7f8c8d',
-                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    }}>
-                                      {!hasAny
-                                        ? '自動計算'
-                                        : allFilled
-                                          ? partial
-                                          : `${partial}+?`}
-                                    </div>
-                                  </>
-                                );
-                              })()}
-                              <span style={{ color: '#7f8c8d', minWidth: 20 }}>符</span>
-                            </div>
-                          </div>
-                          {showTenpaneHelp && (
-                            <div style={{
-                              fontSize: 12, color: '#5d4037', background: '#f5f5f5',
-                              padding: '6px 10px', borderRadius: 4, marginTop: 10, lineHeight: 1.6,
-                              marginRight: 28,
-                            }}>
-                              テンパネ＝符を10の位に切り上げること（例: 32符→40符）
-                            </div>
-                          )}
-                        </div>
                         <div style={fuRowStyle}>
                           <span style={fuLabelStyle}>副底</span>
                           <div style={fuBtnsContainerStyle}>
@@ -835,7 +830,6 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
                       <div style={{
                         fontSize: 12, color: '#5d4037', background: '#f5f5f5',
                         padding: '6px 10px', borderRadius: 4, marginTop: 10, lineHeight: 1.6,
-                        marginRight: 28,
                       }}>
                         テンパネ＝符を10の位に切り上げること（例: 32符→40符）
                       </div>
