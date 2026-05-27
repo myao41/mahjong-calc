@@ -29,7 +29,7 @@ async function getUserId(): Promise<string | null> {
 
 export async function pushLearningRecord(record: AnswerRecord): Promise<void> {
   const userId = await getUserId();
-  if (!userId) { console.log('[cloud] not logged in, skip push'); return; }
+  if (!userId) return;
 
   const { error } = await supabase.from('learning_records').upsert({
     user_id: userId,
@@ -238,8 +238,7 @@ export async function deleteAllCloudData(): Promise<void> {
 
 export async function syncOnLogin(): Promise<void> {
   const userId = await getUserId();
-  if (!userId) { console.log('[cloud] syncOnLogin: no user'); return; }
-  console.log('[cloud] syncOnLogin: starting for', userId);
+  if (!userId) return;
 
   try {
     await Promise.all([
@@ -248,7 +247,6 @@ export async function syncOnLogin(): Promise<void> {
       syncCertRecords(),
       syncSettings(),
     ]);
-    console.log('[cloud] syncOnLogin: complete');
   } catch (e) {
     console.error('[cloud] syncOnLogin error:', e);
   }

@@ -218,7 +218,7 @@ export function SettingsPage() {
         </div>
         <div style={{ fontSize: 13, color: '#7f8c8d', lineHeight: 1.8 }}>
           麻雀の点数計算を反復練習できるWebアプリです。<br />
-          学習データはブラウザに保存され、サーバーへの送信はありません。
+          学習データはブラウザに保存されます。ログイン時はクラウドにも同期されます。
         </div>
         <div style={{ fontSize: 13, marginTop: 8, display: 'flex', gap: 12 }}>
           <a
