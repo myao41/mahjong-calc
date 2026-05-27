@@ -469,44 +469,39 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
           }
           const mainHand = question.closedTiles.filter((_, i) => i !== agariIdx);
           const agariTile = agariIdx >= 0 ? question.closedTiles[agariIdx] : null;
-          const hasMelds = question.openMelds.length > 0;
-          const meldTileCount = question.openMelds.reduce((s, m) => s + m.tiles.length, 0);
-          const splitRow = meldTileCount >= 7;
 
-          // Count how many tiles appear on top row to compute tile width
-          const topRowTileCount = mainHand.length
-            + (agariTile ? 1 : 0)
-            + (hasMelds && !splitRow ? meldTileCount : 0);
-          // Spacers: between main/melds, between melds/agari or main/agari
-          const spacerCount = (hasMelds && !splitRow ? 1 : 0) + (agariTile ? 1 : 0);
+          // Always single row: compute tile width to fit everything
+          // Rotated tiles in open melds are wider (75/56 ratio), so count in
+          // "equivalent tile units" where 1 unit = normal tile width
+          const ROTATE_RATIO = 75 / 56; // ≈ 1.339
+          let tileUnits = mainHand.length + (agariTile ? 1 : 0);
+          for (const m of question.openMelds) {
+            const isAnkan = m.type === 'kantsu' && !m.isOpen;
+            if (isAnkan) {
+              tileUnits += m.tiles.length; // all normal width
+            } else {
+              tileUnits += ROTATE_RATIO + (m.tiles.length - 1); // 1 rotated + rest normal
+            }
+          }
+          const hasMelds = question.openMelds.length > 0;
+          const spacerCount = (hasMelds ? 1 : 0) + (agariTile ? 1 : 0);
           const spacerW = isMobile ? 8 : 12;
-          // Meld gaps (4px between each meld group)
-          const meldGapCount = hasMelds && !splitRow ? Math.max(0, question.openMelds.length - 1) : 0;
+          const meldGapCount = hasMelds ? Math.max(0, question.openMelds.length - 1) : 0;
 
           const defaultTileW = isMobile ? 24 : 38;
           const containerW = handWidth ?? 999;
           const availableW = containerW - spacerCount * spacerW - meldGapCount * 4;
-          const fittedTileW = Math.floor(availableW / Math.max(topRowTileCount, 1));
+          const fittedTileW = Math.floor(availableW / Math.max(tileUnits, 1));
           const tw = Math.max(16, Math.min(defaultTileW, fittedTileW));
-
-          // Also compute for split row (melds on separate line)
-          let twMeld = tw;
-          if (hasMelds && splitRow) {
-            const meldGaps = Math.max(0, question.openMelds.length - 1) * 4;
-            const meldAvailable = containerW - meldGaps;
-            const fittedMeld = Math.floor(meldAvailable / Math.max(meldTileCount, 1));
-            twMeld = Math.max(16, Math.min(defaultTileW, fittedMeld));
-          }
 
           const meldsEl = hasMelds && (
             <div style={{
               display: 'flex', flexWrap: 'nowrap',
               alignItems: 'flex-end',
-              justifyContent: splitRow ? 'center' : undefined,
             }}>
               {question.openMelds.map((meld, mi) => {
                 const isAnkan = meld.type === 'kantsu' && !meld.isOpen;
-                const meldTw = splitRow ? twMeld : tw;
+                const meldTw = tw;
                 return (
                   <div key={`meld-${mi}`} style={{
                     display: 'flex',
@@ -538,57 +533,48 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
             </div>
           );
 
+          // Scale badge font size proportionally to tile width
+          const badgeScale = Math.min(1, tw / defaultTileW);
+          const badgeFontSize = Math.max(9, Math.round((isMobile ? 11 : 12) * badgeScale));
+
           return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: splitRow ? 8 : 0 }}>
-              <div style={{
-                display: 'flex', flexWrap: 'nowrap',
-                alignItems: 'flex-end', justifyContent: 'center',
-              }}>
-                {mainHand.map((tile, i) => (
-                  <div key={i} style={{ flexShrink: 0 }}>
-                    <TileButton tile={tile} widthPx={tw} />
-                  </div>
-                ))}
-
-                {hasMelds && !splitRow && (
-                  <>
-                    <div style={{ width: spacerW, flexShrink: 0 }} />
-                    {meldsEl}
-                  </>
-                )}
-
-                {agariTile && (
-                  <>
-                    <div style={{ width: spacerW, flexShrink: 0 }} />
-                    <div style={{
-                      display: 'flex', flexDirection: 'column',
-                      alignItems: 'center', flexShrink: 0,
-                    }}>
-                      <div style={{
-                        fontSize: isMobile ? 11 : 12,
-                        color: '#fff', fontWeight: 'bold',
-                        background: isTsumo ? '#16a085' : '#e74c3c',
-                        padding: '1px 6px',
-                        borderRadius: 3,
-                        lineHeight: 1.3, marginBottom: 6,
-                      }}>
-                        {isTsumo ? 'ツモ' : 'ロン'}
-                      </div>
-                      <TileButton tile={agariTile} widthPx={tw} />
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {hasMelds && splitRow && (
-                <div style={{
-                  borderTop: '1px dashed #e0e0e0',
-                  paddingTop: 6,
-                  display: 'flex',
-                  justifyContent: 'center',
-                }}>
-                  {meldsEl}
+            <div style={{
+              display: 'flex', flexWrap: 'nowrap',
+              alignItems: 'flex-end', justifyContent: 'center',
+            }}>
+              {mainHand.map((tile, i) => (
+                <div key={i} style={{ flexShrink: 0 }}>
+                  <TileButton tile={tile} widthPx={tw} />
                 </div>
+              ))}
+
+              {hasMelds && (
+                <>
+                  <div style={{ width: spacerW, flexShrink: 0 }} />
+                  {meldsEl}
+                </>
+              )}
+
+              {agariTile && (
+                <>
+                  <div style={{ width: spacerW, flexShrink: 0 }} />
+                  <div style={{
+                    display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', flexShrink: 0,
+                  }}>
+                    <div style={{
+                      fontSize: badgeFontSize,
+                      color: '#fff', fontWeight: 'bold',
+                      background: isTsumo ? '#16a085' : '#e74c3c',
+                      padding: '1px 4px',
+                      borderRadius: 3,
+                      lineHeight: 1.3, marginBottom: Math.round(4 * badgeScale + 2),
+                    }}>
+                      {isTsumo ? 'ツモ' : 'ロン'}
+                    </div>
+                    <TileButton tile={agariTile} widthPx={tw} />
+                  </div>
+                </>
               )}
             </div>
           );
