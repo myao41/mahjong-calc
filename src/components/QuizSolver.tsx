@@ -9,9 +9,9 @@ import { useViewport } from '../utils/useViewport';
 import type { Tile } from '../types';
 
 /** 鳴いた牌の最左を90度横向きに表示するヘルパー */
-function RotatedTile({ tile, isMobile }: { tile: Tile; isMobile: boolean }) {
+function RotatedTile({ tile, isMobile, widthPx }: { tile: Tile; isMobile: boolean; widthPx?: number }) {
   // スプライト (56:75 比率) に合わせる
-  const tileW = isMobile ? 24 : 38;
+  const tileW = widthPx ?? (isMobile ? 24 : 38);
   const tileH = Math.round(tileW * 75 / 56);
   return (
     <div style={{
@@ -23,7 +23,7 @@ function RotatedTile({ tile, isMobile }: { tile: Tile; isMobile: boolean }) {
       flexShrink: 0,
     }}>
       <div style={{ transform: 'rotate(-90deg)' }}>
-        <TileButton tile={tile} size="normal" />
+        <TileButton tile={tile} size="normal" widthPx={widthPx} />
       </div>
     </div>
   );
@@ -140,6 +140,8 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
   const [timedOut, setTimedOut] = useState(false);
   const [remainingTime, setRemainingTime] = useState(timeLimit);
   const handleSubmitRef = useRef<() => void>(() => {});
+  const handRef = useRef<HTMLDivElement>(null);
+  const [handWidth, setHandWidth] = useState<number | undefined>(undefined);
 
   // Reset when question changes
   useEffect(() => {
@@ -152,6 +154,21 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
     setTimedOut(false);
     setRemainingTime(timeLimit);
   }, [question, timeLimit]);
+
+  // Measure hand container width for responsive tile sizing
+  useEffect(() => {
+    function measure() {
+      if (handRef.current) {
+        const style = getComputedStyle(handRef.current);
+        const pl = parseFloat(style.paddingLeft) || 0;
+        const pr = parseFloat(style.paddingRight) || 0;
+        setHandWidth(handRef.current.clientWidth - pl - pr);
+      }
+    }
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
 
   const { condition, answer } = question;
   const isDealer = condition.seatWind === 1;
@@ -291,13 +308,12 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
       </div>
 
       {/* Hand display */}
-      <div style={{
+      <div ref={handRef} style={{
         background: '#fff', borderRadius: 8,
-        padding: isMobile ? '10px 6px' : '16px 16px',
+        padding: isMobile ? '10px 12px' : '16px 16px',
         marginBottom: 14,
         border: '1px solid #e0e0e0',
       }}>
-        {/* label removed */}
         {(() => {
           let agariIdx = -1;
           for (let j = 0; j < question.closedTiles.length; j++) {
@@ -312,6 +328,32 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
           const meldTileCount = question.openMelds.reduce((s, m) => s + m.tiles.length, 0);
           const splitRow = meldTileCount >= 7;
 
+          // Count how many tiles appear on top row to compute tile width
+          const topRowTileCount = mainHand.length
+            + (agariTile ? 1 : 0)
+            + (hasMelds && !splitRow ? meldTileCount : 0);
+          // Spacers: between main/melds, between melds/agari or main/agari
+          const spacerCount = (hasMelds && !splitRow ? 1 : 0) + (agariTile ? 1 : 0);
+          const spacerW = isMobile ? 8 : 12;
+          // Meld gaps (4px between each meld group)
+          const meldGapCount = hasMelds && !splitRow ? Math.max(0, question.openMelds.length - 1) : 0;
+
+          const defaultTileW = isMobile ? 24 : 38;
+          const containerW = handWidth ?? 999;
+          const availableW = containerW - spacerCount * spacerW - meldGapCount * 4;
+          const fittedTileW = Math.floor(availableW / Math.max(topRowTileCount, 1));
+          const tw = Math.max(16, Math.min(defaultTileW, fittedTileW));
+
+          // Also compute for split row (melds on separate line)
+          let twMeld = tw;
+          if (hasMelds && splitRow) {
+            const meldGaps = Math.max(0, question.openMelds.length - 1) * 4;
+            const labelW = isMobile ? 18 : 24; // "副露" label + margin
+            const meldAvailable = containerW - meldGaps - labelW;
+            const fittedMeld = Math.floor(meldAvailable / Math.max(meldTileCount, 1));
+            twMeld = Math.max(16, Math.min(defaultTileW, fittedMeld));
+          }
+
           const meldsEl = hasMelds && (
             <div style={{
               display: 'flex', flexWrap: 'nowrap',
@@ -320,6 +362,7 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
             }}>
               {question.openMelds.map((meld, mi) => {
                 const isAnkan = meld.type === 'kantsu' && !meld.isOpen;
+                const meldTw = splitRow ? twMeld : tw;
                 return (
                   <div key={`meld-${mi}`} style={{
                     display: 'flex',
@@ -338,8 +381,8 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
                     <div style={{ display: 'flex', alignItems: 'flex-end' }}>
                       {meld.tiles.map((tile, ti) => (
                         !isAnkan && ti === 0
-                          ? <RotatedTile key={ti} tile={tile} isMobile={isMobile} />
-                          : <TileButton key={ti} tile={tile} size="normal" />
+                          ? <RotatedTile key={ti} tile={tile} isMobile={isMobile} widthPx={meldTw} />
+                          : <TileButton key={ti} tile={tile} size="normal" widthPx={meldTw} />
                       ))}
                     </div>
                   </div>
@@ -356,20 +399,20 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
               }}>
                 {mainHand.map((tile, i) => (
                   <div key={i} style={{ flexShrink: 0 }}>
-                    <TileButton tile={tile} />
+                    <TileButton tile={tile} widthPx={tw} />
                   </div>
                 ))}
 
                 {hasMelds && !splitRow && (
                   <>
-                    <div style={{ width: isMobile ? 8 : 12, flexShrink: 0 }} />
+                    <div style={{ width: spacerW, flexShrink: 0 }} />
                     {meldsEl}
                   </>
                 )}
 
                 {agariTile && (
                   <>
-                    <div style={{ width: isMobile ? 8 : 12, flexShrink: 0 }} />
+                    <div style={{ width: spacerW, flexShrink: 0 }} />
                     <div style={{
                       display: 'flex', flexDirection: 'column',
                       alignItems: 'center', flexShrink: 0,
@@ -384,7 +427,7 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
                       }}>
                         {isTsumo ? 'ツモ' : 'ロン'}
                       </div>
-                      <TileButton tile={agariTile} />
+                      <TileButton tile={agariTile} widthPx={tw} />
                     </div>
                   </>
                 )}
