@@ -484,7 +484,8 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
                   {showTenpaneHelp && (
                     <div style={{
                       fontSize: 12, color: '#5d4037', background: '#f5f5f5',
-                      padding: '6px 10px', borderRadius: 4, marginTop: 6, lineHeight: 1.6,
+                      padding: '6px 10px', borderRadius: 4, marginTop: 10, lineHeight: 1.6,
+                      marginRight: 28,
                     }}>
                       テンパネ＝符を10の位に切り上げること（例: 32符→40符）
                     </div>
