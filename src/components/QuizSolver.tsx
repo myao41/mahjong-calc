@@ -406,6 +406,10 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
           color: '#fff', padding: '2px 10px',
           borderRadius: 3, fontWeight: 'bold', fontSize: 14,
         }}>{isDealer ? '親' : '子'}</span>
+        {condition.isDoubleRiichi && <span style={{
+          background: '#2980b9', color: '#fff', padding: '2px 10px',
+          borderRadius: 3, fontWeight: 'bold', fontSize: 14,
+        }}>ダブル立直</span>}
         {condition.isRiichi && <span style={{
           background: '#3498db', color: '#fff', padding: '2px 10px',
           borderRadius: 3, fontWeight: 'bold', fontSize: 14,
@@ -414,7 +418,7 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
           background: '#8e44ad', color: '#fff', padding: '2px 10px',
           borderRadius: 3, fontWeight: 'bold', fontSize: 14,
         }}>一発</span>}
-        {!condition.isRiichi && !question.openMelds.some(m => m.isOpen) && <span style={{
+        {!condition.isRiichi && !condition.isDoubleRiichi && !question.openMelds.some(m => m.isOpen) && <span style={{
           background: '#95a5a6', color: '#fff', padding: '2px 10px',
           borderRadius: 3, fontWeight: 'bold', fontSize: 14,
         }}>ヤミテン</span>}
@@ -489,8 +493,7 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
           let twMeld = tw;
           if (hasMelds && splitRow) {
             const meldGaps = Math.max(0, question.openMelds.length - 1) * 4;
-            const labelW = isMobile ? 18 : 24; // "副露" label + margin
-            const meldAvailable = containerW - meldGaps - labelW;
+            const meldAvailable = containerW - meldGaps;
             const fittedMeld = Math.floor(meldAvailable / Math.max(meldTileCount, 1));
             twMeld = Math.max(16, Math.min(defaultTileW, fittedMeld));
           }
@@ -507,25 +510,28 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
                 return (
                   <div key={`meld-${mi}`} style={{
                     display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
+                    alignItems: 'flex-end',
                     marginLeft: mi > 0 ? 4 : 0,
                     flexShrink: 0,
                   }}>
-                    {isAnkan && (
-                      <div style={{
-                        fontSize: isMobile ? 9 : 10,
-                        color: '#7f8c8d', fontWeight: 'bold',
-                        lineHeight: 1, marginBottom: 2,
-                      }}>暗槓</div>
-                    )}
-                    <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-                      {meld.tiles.map((tile, ti) => (
-                        !isAnkan && ti === 0
-                          ? <RotatedTile key={ti} tile={tile} isMobile={isMobile} widthPx={meldTw} />
-                          : <TileButton key={ti} tile={tile} size="normal" widthPx={meldTw} />
-                      ))}
-                    </div>
+                    {meld.tiles.map((tile, ti) => {
+                      if (isAnkan && (ti === 0 || ti === 3)) {
+                        const h = Math.round(meldTw * 75 / 56);
+                        return (
+                          <div key={ti} style={{
+                            width: meldTw, height: h, flexShrink: 0,
+                            borderRadius: 3,
+                            background: '#E2B007',
+                            border: '1px solid #D49B00',
+                            boxSizing: 'border-box',
+                          }} />
+                        );
+                      }
+                      if (!isAnkan && ti === 0) {
+                        return <RotatedTile key={ti} tile={tile} isMobile={isMobile} widthPx={meldTw} />;
+                      }
+                      return <TileButton key={ti} tile={tile} size="normal" widthPx={meldTw} />;
+                    })}
                   </div>
                 );
               })}
@@ -581,11 +587,6 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
                   display: 'flex',
                   justifyContent: 'center',
                 }}>
-                  <div style={{
-                    fontSize: isMobile ? 10 : 12,
-                    color: '#7f8c8d', marginRight: 8,
-                    alignSelf: 'center', fontWeight: 'bold',
-                  }}>副露</div>
                   {meldsEl}
                 </div>
               )}
