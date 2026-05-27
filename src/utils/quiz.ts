@@ -761,7 +761,12 @@ function generateSuuankoHand(): HandResult | null {
   const closedTiles: Tile[] = [];
   for (const m of allMentsu) closedTiles.push(...m.tiles);
   closedTiles.push(jantaiTile, jantaiTile);
-  return { closedTiles: sortTiles(closedTiles), openMelds: [], agariTile: jantaiTile };
+
+  // 50% shanpon wait (tsumo from koutsu), 50% tanki wait (tsumo/ron from jantai)
+  const agariTile = Math.random() < 0.5
+    ? allMentsu[rand(4)].tiles[0]
+    : jantaiTile;
+  return { closedTiles: sortTiles(closedTiles), openMelds: [], agariTile };
 }
 
 function generateDaisangenHand(): HandResult | null {

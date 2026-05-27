@@ -58,9 +58,20 @@ export function detectYaku(
   }
 
   // 四暗刻
-  if (menzen && decomp.mentsu.filter(m => m.type === 'koutsu' || m.type === 'kantsu').length === 4) {
-    yaku.push({ name: '四暗刻', han: 13, isYakuman: true });
-    return yaku;
+  {
+    const closedKoutsu = decomp.mentsu.filter(m => (m.type === 'koutsu' || m.type === 'kantsu') && !m.isOpen);
+    let ankoCount = closedKoutsu.length;
+    if (condition.agariType === 'ron' && ankoCount > 0) {
+      const a = condition.agariTile;
+      const ronCompletesKoutsu = closedKoutsu.some(
+        m => m.type === 'koutsu' && m.tiles[0].suit === a.suit && m.tiles[0].num === a.num
+      );
+      if (ronCompletesKoutsu) ankoCount--;
+    }
+    if (menzen && ankoCount === 4) {
+      yaku.push({ name: '四暗刻', han: 13, isYakuman: true });
+      return yaku;
+    }
   }
 
   // 大三元
@@ -273,7 +284,15 @@ export function detectYaku(
   // 三暗刻
   if (!isChiitoitsu) {
     const anko = decomp.mentsu.filter(m => (m.type === 'koutsu' || m.type === 'kantsu') && !m.isOpen);
-    if (anko.length === 3) {
+    let ankoCount = anko.length;
+    if (condition.agariType === 'ron') {
+      const a = condition.agariTile;
+      const ronCompletesKoutsu = anko.some(
+        m => m.type === 'koutsu' && m.tiles[0].suit === a.suit && m.tiles[0].num === a.num
+      );
+      if (ronCompletesKoutsu) ankoCount--;
+    }
+    if (ankoCount === 3) {
       yaku.push({ name: '三暗刻', han: 2 });
     }
   }
