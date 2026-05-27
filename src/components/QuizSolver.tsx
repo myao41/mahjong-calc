@@ -708,39 +708,20 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
                           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
                             {(() => {
                               const hasAny = fuAgari !== null || fuWait !== null || fuHead !== null || fuMentsu !== null;
-                              const allFilled = fuAgari !== null && fuWait !== null && fuHead !== null && fuMentsu !== null;
-                              const parts = [
-                                '20',
-                                fuAgari !== null ? String(fuAgari) : '?',
-                                fuWait !== null ? String(fuWait) : '?',
-                                fuHead !== null ? String(fuHead) : '?',
-                                fuMentsu !== null ? String(fuMentsu) : '?',
-                              ];
                               const partial = 20 + (fuAgari ?? 0) + (fuWait ?? 0) + (fuHead ?? 0) + (fuMentsu ?? 0);
 
                               return (
-                                <>
-                                  {hasAny && (
-                                    <span style={{ fontSize: 12, color: '#7f8c8d', whiteSpace: 'nowrap' }}>
-                                      {parts.join('+')}=
-                                    </span>
-                                  )}
-                                  <div style={{
-                                    width: 140, height: 40, textAlign: 'center',
-                                    fontSize: hasAny ? 16 : 13,
-                                    fontWeight: hasAny ? 'bold' : 'normal',
-                                    border: '1px solid #bdc3c7', borderRadius: 4,
-                                    background: '#f5f5f5',
-                                    color: hasAny ? '#2c3e50' : '#7f8c8d',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                  }}>
-                                    {!hasAny
-                                      ? '自動計算'
-                                      : allFilled
-                                        ? partial
-                                        : `${partial}+?`}
-                                  </div>
-                                </>
+                                <div style={{
+                                  width: 140, height: 40, textAlign: 'center',
+                                  fontSize: hasAny ? 16 : 13,
+                                  fontWeight: hasAny ? 'bold' : 'normal',
+                                  border: '1px solid #bdc3c7', borderRadius: 4,
+                                  background: '#f5f5f5',
+                                  color: hasAny ? '#2c3e50' : '#7f8c8d',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                }}>
+                                  {hasAny ? partial : '自動計算'}
+                                </div>
                               );
                             })()}
                             <span style={{ color: '#7f8c8d', minWidth: 20 }}>符</span>
