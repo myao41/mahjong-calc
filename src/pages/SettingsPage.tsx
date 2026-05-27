@@ -173,6 +173,7 @@ export function SettingsPage() {
         <div style={noteStyle}>上級では自動的に「簡略」になります</div>
         <OptionButtons
           options={[
+            { value: 'fu-detail' as const, label: '符の内訳', desc: '翻・符内訳・点数' },
             { value: 'normal' as const, label: '通常', desc: '翻・符・点数' },
             { value: 'simple' as const, label: '簡略', desc: '点数のみ' },
           ]}

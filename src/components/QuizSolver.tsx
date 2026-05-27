@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
-import type { QuizQuestion, ScoreResult } from '../types';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import type { QuizQuestion, ScoreResult, FuDetail } from '../types';
 import { windName } from '../utils/tiles';
 import { TileButton } from './TileButton';
 import { DetailScoreTable } from './DetailScoreTable';
@@ -39,7 +39,7 @@ interface Props {
   onAnswered?: (user: UserAnswer, isCorrect: boolean) => void;
   onSkip?: () => void;
   timeLimit?: number;
-  answerMode?: 'simple' | 'normal';
+  answerMode?: 'simple' | 'normal' | 'fu-detail';
   honba?: number;
 }
 
@@ -96,7 +96,7 @@ function ScoreStepper({ value, onChange }: {
         type="button"
         onClick={() => set(n - 100)}
         style={{ ...scoreStepBtnStyle, width: 38, borderLeft: 'none', borderRadius: 0 }}
-      ><span style={{ fontSize: 10 }}>−100</span></button>
+      ><span style={{ fontSize: 9 }}>−100</span></button>
       <input
         type="number"
         value={value}
@@ -112,7 +112,7 @@ function ScoreStepper({ value, onChange }: {
         type="button"
         onClick={() => set(n + 100)}
         style={{ ...scoreStepBtnStyle, width: 38, borderLeft: 'none', borderRadius: 0 }}
-      ><span style={{ fontSize: 10 }}>+100</span></button>
+      ><span style={{ fontSize: 9 }}>+100</span></button>
       <button
         type="button"
         onClick={() => set(n + 1000)}
@@ -129,6 +129,79 @@ const scoreStepBtnStyle: React.CSSProperties = {
   color: '#2c3e50', userSelect: 'none', padding: 0,
 };
 
+function isSpecialFu(fuDetails: FuDetail[]): 'chiitoitsu' | 'pinfu-tsumo' | null {
+  if (fuDetails.length === 1 && fuDetails[0].name === '七対子') return 'chiitoitsu';
+  if (fuDetails.length === 1 && fuDetails[0].name === 'ピンフツモ') return 'pinfu-tsumo';
+  return null;
+}
+
+function getMentsuTotal(fuDetails: FuDetail[]): number {
+  return fuDetails
+    .filter(d => d.name.includes('刻') || d.name.includes('槓'))
+    .reduce((s, d) => s + d.fu, 0);
+}
+
+function generateMentsuChoices(correct: number): number[] {
+  const candidates = new Set<number>();
+  candidates.add(correct);
+
+  const allValues = [0, 2, 4, 8, 16, 32];
+  for (const v of allValues) {
+    if (candidates.size >= 6) break;
+    candidates.add(v);
+  }
+  // Add some sums that are plausible mistakes
+  for (const v of [correct + 2, correct - 2, correct * 2, Math.floor(correct / 2)]) {
+    if (v >= 0 && v <= 128) candidates.add(v);
+  }
+
+  const arr = Array.from(candidates).filter(v => v !== correct);
+  // Pick 3 distractors that are closest to the correct answer
+  arr.sort((a, b) => Math.abs(a - correct) - Math.abs(b - correct));
+  const distractors = arr.slice(0, 3);
+  const choices = [correct, ...distractors];
+  choices.sort((a, b) => a - b);
+  return choices;
+}
+
+function generateSpecialFuChoices(correct: number): number[] {
+  if (correct === 25) return [20, 25, 30, 40];
+  if (correct === 20) return [20, 22, 25, 30];
+  return [20, 25, 30, 40];
+}
+
+const FU_BTN_WIDTH = 52;
+
+const fuBtnStyle = (selected: boolean): React.CSSProperties => ({
+  width: FU_BTN_WIDTH,
+  minHeight: 44,
+  borderRadius: 6,
+  border: selected ? '2px solid #3498db' : '1px solid #bdc3c7',
+  background: selected ? '#3498db' : '#fff',
+  color: selected ? '#fff' : '#2c3e50',
+  fontSize: 16,
+  fontWeight: 'bold',
+  cursor: 'pointer',
+});
+
+const fuRowStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+};
+
+const fuLabelStyle: React.CSSProperties = {
+  width: '4.5em',
+  flexShrink: 0,
+  fontSize: 14,
+  color: '#2c3e50',
+};
+
+const fuBtnsContainerStyle: React.CSSProperties = {
+  display: 'flex',
+  gap: 6,
+};
+
 export function QuizSolver({ question, onNext, nextLabel = '次の問題', title, onAnswered, onSkip, timeLimit = 0, answerMode = 'normal', honba = 0 }: Props) {
   const { isMobile } = useViewport();
   const [phase, setPhase] = useState<Phase>('answering');
@@ -137,6 +210,11 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
   const [inputScore1, setInputScore1] = useState('0');
   const [inputScore2, setInputScore2] = useState('0');
   const [showTenpaneHelp, setShowTenpaneHelp] = useState(false);
+  const [fuAgari, setFuAgari] = useState<number | null>(null);
+  const [fuWait, setFuWait] = useState<number | null>(null);
+  const [fuHead, setFuHead] = useState<number | null>(null);
+  const [fuMentsu, setFuMentsu] = useState<number | null>(null);
+  const [fuSpecial, setFuSpecial] = useState<number | null>(null);
   const [timedOut, setTimedOut] = useState(false);
   const [remainingTime, setRemainingTime] = useState(timeLimit);
   const handleSubmitRef = useRef<() => void>(() => {});
@@ -151,6 +229,11 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
     setInputScore1('0');
     setInputScore2('0');
     setShowTenpaneHelp(false);
+    setFuAgari(null);
+    setFuWait(null);
+    setFuHead(null);
+    setFuMentsu(null);
+    setFuSpecial(null);
     setTimedOut(false);
     setRemainingTime(timeLimit);
   }, [question, timeLimit]);
@@ -174,6 +257,38 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
   const isDealer = condition.seatWind === 1;
   const isTsumo = condition.agariType === 'tsumo';
   const isSimple = answerMode === 'simple';
+  const isFuDetail = answerMode === 'fu-detail';
+
+  const specialFuType = useMemo(() => isSpecialFu(answer.fuCalc.details), [answer]);
+  const correctMentsuTotal = useMemo(() => getMentsuTotal(answer.fuCalc.details), [answer]);
+  const mentsuChoices = useMemo(() => generateMentsuChoices(correctMentsuTotal), [correctMentsuTotal]);
+  const specialFuChoices = useMemo(
+    () => specialFuType ? generateSpecialFuChoices(answer.fuCalc.roundedTotal) : [],
+    [specialFuType, answer],
+  );
+
+  const correctFuAgari = useMemo(() => {
+    const d = answer.fuCalc.details;
+    const menzenRon = d.find(x => x.name === '門前ロン');
+    if (menzenRon) return 10;
+    const tsumo = d.find(x => x.name === 'ツモ');
+    if (tsumo) return 2;
+    return 0;
+  }, [answer]);
+
+  const correctFuWait = useMemo(() => {
+    const d = answer.fuCalc.details;
+    const wait = d.find(x =>
+      x.name.includes('待ち') && !x.name.includes('副底'),
+    );
+    return wait ? wait.fu : 0;
+  }, [answer]);
+
+  const correctFuHead = useMemo(() => {
+    const d = answer.fuCalc.details;
+    const head = d.find(x => x.name.includes('雀頭'));
+    return head ? head.fu : 0;
+  }, [answer]);
 
   // Honba-adjusted expected scores
   const expectedRon = (answer.ronPayment ?? 0) + honba * 300;
@@ -191,14 +306,36 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
   const handleSubmit = useCallback(() => {
     if (phase !== 'answering') return;
     const a = answer;
+
+    let derivedFu = Number(inputFu);
+    if (isFuDetail) {
+      if (specialFuType) {
+        derivedFu = fuSpecial ?? 0;
+      } else {
+        derivedFu = 20 + (fuAgari ?? 0) + (fuWait ?? 0) + (fuHead ?? 0) + (fuMentsu ?? 0);
+      }
+    }
+
     const user: UserAnswer = {
       han: Number(inputHan),
-      fu: Number(inputFu),
+      fu: derivedFu,
       score1: Number(inputScore1),
       score2: Number(inputScore2),
     };
     const hanOk = user.han === a.han;
     const fuOk = user.fu === a.rawFu;
+
+    let fuDetailOk = true;
+    if (isFuDetail) {
+      if (specialFuType) {
+        fuDetailOk = fuSpecial === a.rawFu;
+      } else {
+        fuDetailOk = fuAgari === correctFuAgari
+          && fuWait === correctFuWait
+          && fuHead === correctFuHead
+          && fuMentsu === correctMentsuTotal;
+      }
+    }
 
     let scoreOk = false;
     if (a.agariType === 'ron') {
@@ -210,10 +347,14 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
                 user.score2 === expectedTsumoDealer;
     }
 
-    const allCorrect = isSimple ? scoreOk : (hanOk && fuOk && scoreOk);
+    const allCorrect = isSimple
+      ? scoreOk
+      : isFuDetail
+        ? (hanOk && fuDetailOk && scoreOk)
+        : (hanOk && fuOk && scoreOk);
     setPhase(allCorrect ? 'correct' : 'wrong');
     onAnswered?.(user, allCorrect);
-  }, [phase, answer, inputHan, inputFu, inputScore1, inputScore2, onAnswered, isSimple, expectedRon, expectedTsumoAll, expectedTsumoChild, expectedTsumoDealer]);
+  }, [phase, answer, inputHan, inputFu, inputScore1, inputScore2, onAnswered, isSimple, isFuDetail, specialFuType, fuAgari, fuWait, fuHead, fuMentsu, fuSpecial, correctFuAgari, correctFuWait, correctFuHead, correctMentsuTotal, expectedRon, expectedTsumoAll, expectedTsumoChild, expectedTsumoDealer]);
 
   // Keep ref updated for timer callback
   handleSubmitRef.current = handleSubmit;
@@ -505,35 +646,201 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
                   </div>
                 </div>
 
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', fontSize: 16 }}>
-                    <span style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      符(テンパネ前):
-                      <span
-                        onClick={() => setShowTenpaneHelp(v => !v)}
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                          width: 18, height: 18, borderRadius: '50%',
-                          background: showTenpaneHelp ? '#3498db' : '#bdc3c7',
-                          color: '#fff', fontSize: 11, cursor: 'pointer', lineHeight: 1,
-                        }}
-                      >?</span>
-                    </span>
-                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
-                      <Stepper value={inputFu} onChange={setInputFu} min={20} max={130} step={2} />
-                      <span style={{ color: '#7f8c8d', minWidth: 20 }}>符</span>
+                {isFuDetail ? (
+                  <>
+                    {specialFuType ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', fontSize: 16 }}>
+                            <span style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: 4 }}>
+                              符(テンパネ前):
+                              <span
+                                onClick={() => setShowTenpaneHelp(v => !v)}
+                                style={{
+                                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                  width: 18, height: 18, borderRadius: '50%',
+                                  background: showTenpaneHelp ? '#3498db' : '#bdc3c7',
+                                  color: '#fff', fontSize: 11, cursor: 'pointer', lineHeight: 1,
+                                }}
+                              >?</span>
+                            </span>
+                          </div>
+                        </div>
+                        <div style={{
+                          fontSize: 13, color: '#e65100', background: '#fff8e1',
+                          padding: '6px 10px', borderRadius: 4,
+                        }}>
+                          この手は特殊な符計算です
+                        </div>
+                        <div style={fuRowStyle}>
+                          <span style={fuLabelStyle}>合計符</span>
+                          <div style={fuBtnsContainerStyle}>
+                            {specialFuChoices.map(v => (
+                              <button key={v} type="button" onClick={() => setFuSpecial(v)} style={fuBtnStyle(fuSpecial === v)}>
+                                {v}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        {showTenpaneHelp && (
+                          <div style={{
+                            fontSize: 12, color: '#5d4037', background: '#f5f5f5',
+                            padding: '6px 10px', borderRadius: 4, lineHeight: 1.6,
+                          }}>
+                            テンパネ＝符を10の位に切り上げること（例: 32符→40符）
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', fontSize: 16 }}>
+                            <span style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: 4 }}>
+                              符(テンパネ前):
+                              <span
+                                onClick={() => setShowTenpaneHelp(v => !v)}
+                                style={{
+                                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                  width: 18, height: 18, borderRadius: '50%',
+                                  background: showTenpaneHelp ? '#3498db' : '#bdc3c7',
+                                  color: '#fff', fontSize: 11, cursor: 'pointer', lineHeight: 1,
+                                }}
+                              >?</span>
+                            </span>
+                            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+                              {(() => {
+                                const hasAny = fuAgari !== null || fuWait !== null || fuHead !== null || fuMentsu !== null;
+                                const allFilled = fuAgari !== null && fuWait !== null && fuHead !== null && fuMentsu !== null;
+                                const parts = [
+                                  '20',
+                                  fuAgari !== null ? String(fuAgari) : '?',
+                                  fuWait !== null ? String(fuWait) : '?',
+                                  fuHead !== null ? String(fuHead) : '?',
+                                  fuMentsu !== null ? String(fuMentsu) : '?',
+                                ];
+                                const partial = 20 + (fuAgari ?? 0) + (fuWait ?? 0) + (fuHead ?? 0) + (fuMentsu ?? 0);
+                                const hasUnknown = !allFilled;
+                                return (
+                                  <>
+                                    {hasAny && (
+                                      <span style={{ fontSize: 12, color: '#7f8c8d', whiteSpace: 'nowrap' }}>
+                                        {parts.join('+')}=
+                                      </span>
+                                    )}
+                                    <div style={{
+                                      width: 140, height: 40, textAlign: 'center',
+                                      fontSize: hasAny ? 16 : 13,
+                                      fontWeight: hasAny ? 'bold' : 'normal',
+                                      border: '1px solid #bdc3c7', borderRadius: 4,
+                                      background: '#f5f5f5',
+                                      color: hasAny ? '#2c3e50' : '#7f8c8d',
+                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    }}>
+                                      {!hasAny
+                                        ? '自動計算'
+                                        : allFilled
+                                          ? partial
+                                          : `${partial}+?`}
+                                    </div>
+                                  </>
+                                );
+                              })()}
+                              <span style={{ color: '#7f8c8d', minWidth: 20 }}>符</span>
+                            </div>
+                          </div>
+                          {showTenpaneHelp && (
+                            <div style={{
+                              fontSize: 12, color: '#5d4037', background: '#f5f5f5',
+                              padding: '6px 10px', borderRadius: 4, marginTop: 10, lineHeight: 1.6,
+                              marginRight: 28,
+                            }}>
+                              テンパネ＝符を10の位に切り上げること（例: 32符→40符）
+                            </div>
+                          )}
+                        </div>
+                        <div style={fuRowStyle}>
+                          <span style={fuLabelStyle}>副底</span>
+                          <div style={fuBtnsContainerStyle}>
+                            <div style={{ width: FU_BTN_WIDTH, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#7f8c8d' }}>
+                              20符
+                            </div>
+                          </div>
+                        </div>
+                        <div style={fuRowStyle}>
+                          <span style={fuLabelStyle}>アガリ方</span>
+                          <div style={fuBtnsContainerStyle}>
+                            {[0, 2, 10].map(v => (
+                              <button key={v} type="button" onClick={() => setFuAgari(v)} style={fuBtnStyle(fuAgari === v)}>
+                                {v}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div style={fuRowStyle}>
+                          <span style={fuLabelStyle}>待ち</span>
+                          <div style={fuBtnsContainerStyle}>
+                            {[0, 2].map(v => (
+                              <button key={v} type="button" onClick={() => setFuWait(v)} style={fuBtnStyle(fuWait === v)}>
+                                {v}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div style={fuRowStyle}>
+                          <span style={fuLabelStyle}>雀頭</span>
+                          <div style={fuBtnsContainerStyle}>
+                            {[0, 2].map(v => (
+                              <button key={v} type="button" onClick={() => setFuHead(v)} style={fuBtnStyle(fuHead === v)}>
+                                {v}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div style={fuRowStyle}>
+                          <span style={fuLabelStyle}>面子</span>
+                          <div style={fuBtnsContainerStyle}>
+                            {mentsuChoices.map(v => (
+                              <button key={v} type="button" onClick={() => setFuMentsu(v)} style={fuBtnStyle(fuMentsu === v)}>
+                                {v}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+
+                ) : (
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', fontSize: 16 }}>
+                      <span style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        符(テンパネ前):
+                        <span
+                          onClick={() => setShowTenpaneHelp(v => !v)}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            width: 18, height: 18, borderRadius: '50%',
+                            background: showTenpaneHelp ? '#3498db' : '#bdc3c7',
+                            color: '#fff', fontSize: 11, cursor: 'pointer', lineHeight: 1,
+                          }}
+                        >?</span>
+                      </span>
+                      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+                        <Stepper value={inputFu} onChange={setInputFu} min={20} max={130} step={2} />
+                        <span style={{ color: '#7f8c8d', minWidth: 20 }}>符</span>
+                      </div>
                     </div>
+                    {showTenpaneHelp && (
+                      <div style={{
+                        fontSize: 12, color: '#5d4037', background: '#f5f5f5',
+                        padding: '6px 10px', borderRadius: 4, marginTop: 10, lineHeight: 1.6,
+                        marginRight: 28,
+                      }}>
+                        テンパネ＝符を10の位に切り上げること（例: 32符→40符）
+                      </div>
+                    )}
                   </div>
-                  {showTenpaneHelp && (
-                    <div style={{
-                      fontSize: 12, color: '#5d4037', background: '#f5f5f5',
-                      padding: '6px 10px', borderRadius: 4, marginTop: 10, lineHeight: 1.6,
-                      marginRight: 28,
-                    }}>
-                      テンパネ＝符を10の位に切り上げること（例: 32符→40符）
-                    </div>
-                  )}
-                </div>
+                )}
               </>
             )}
 
@@ -567,9 +874,17 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
           <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
             <button
               onClick={handleSubmit}
-              disabled={isSimple
-                ? (!Number(inputScore1) || (isTsumo && !isDealer && !Number(inputScore2)))
-                : (!Number(inputHan) || !Number(inputFu) || !Number(inputScore1) || (isTsumo && !isDealer && !Number(inputScore2)))}
+              disabled={(() => {
+                const scoreEmpty = !Number(inputScore1) || (isTsumo && !isDealer && !Number(inputScore2));
+                if (isSimple) return scoreEmpty;
+                if (isFuDetail) {
+                  const fuFilled = specialFuType
+                    ? fuSpecial !== null
+                    : fuAgari !== null && fuWait !== null && fuHead !== null && fuMentsu !== null;
+                  return !Number(inputHan) || !fuFilled || scoreEmpty;
+                }
+                return !Number(inputHan) || !Number(inputFu) || scoreEmpty;
+              })()}
               style={{
                 flex: 1, padding: '14px',
                 borderRadius: 8, border: 'none', fontSize: 18, fontWeight: 'bold',
@@ -670,7 +985,20 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
                     {!isSimple && (
                       <>
                         <AnswerRow label="翻数" yours={inputHan + '翻'} correct={answer.han + '翻'} ok={Number(inputHan) === answer.han} />
-                        <AnswerRow label="符" yours={inputFu + '符'} correct={answer.rawFu + '符'} ok={Number(inputFu) === answer.rawFu} />
+                        {isFuDetail ? (
+                          specialFuType ? (
+                            <AnswerRow label="符(合計)" yours={(fuSpecial ?? 0) + '符'} correct={answer.rawFu + '符'} ok={fuSpecial === answer.rawFu} />
+                          ) : (
+                            <>
+                              <AnswerRow label="アガリ方" yours={(fuAgari ?? 0) + '符'} correct={correctFuAgari + '符'} ok={fuAgari === correctFuAgari} />
+                              <AnswerRow label="待ち" yours={(fuWait ?? 0) + '符'} correct={correctFuWait + '符'} ok={fuWait === correctFuWait} />
+                              <AnswerRow label="雀頭" yours={(fuHead ?? 0) + '符'} correct={correctFuHead + '符'} ok={fuHead === correctFuHead} />
+                              <AnswerRow label="面子" yours={(fuMentsu ?? 0) + '符'} correct={correctMentsuTotal + '符'} ok={fuMentsu === correctMentsuTotal} />
+                            </>
+                          )
+                        ) : (
+                          <AnswerRow label="符" yours={inputFu + '符'} correct={answer.rawFu + '符'} ok={Number(inputFu) === answer.rawFu} />
+                        )}
                       </>
                     )}
                     <AnswerRow

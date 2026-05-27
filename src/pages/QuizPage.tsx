@@ -66,7 +66,9 @@ export function QuizPage({ weaknessMode }: Props) {
   }, [question, difficulty, weaknessMode]);
 
   const settings = loadSettings();
-  const effectiveAnswerMode = difficulty === 'hard' ? 'simple' as const : settings.answerMode;
+  const effectiveAnswerMode = difficulty === 'hard' ? 'simple' as const
+    : settings.answerMode === 'fu-detail' ? 'fu-detail' as const
+    : settings.answerMode;
   const effectiveTimeLimit = settings.timeLimit;
 
   const topWeakness = weaknessCategories[0];

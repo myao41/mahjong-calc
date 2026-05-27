@@ -1,4 +1,4 @@
-export type AnswerMode = 'simple' | 'normal';
+export type AnswerMode = 'simple' | 'normal' | 'fu-detail';
 
 export interface Settings {
   answerMode: AnswerMode;
@@ -20,7 +20,7 @@ export function loadSettings(): Settings {
     if (!raw) return { ...DEFAULT_SETTINGS };
     const parsed = JSON.parse(raw);
     return {
-      answerMode: parsed.answerMode === 'simple' ? 'simple' : 'normal',
+      answerMode: parsed.answerMode === 'simple' ? 'simple' : parsed.answerMode === 'fu-detail' ? 'fu-detail' : 'normal',
       timeLimit: [0, 15, 30, 60].includes(parsed.timeLimit) ? parsed.timeLimit : 0,
       honba: typeof parsed.honba === 'boolean' ? parsed.honba : false,
     };
