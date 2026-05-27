@@ -719,7 +719,7 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
                                   fuMentsu !== null ? String(fuMentsu) : '?',
                                 ];
                                 const partial = 20 + (fuAgari ?? 0) + (fuWait ?? 0) + (fuHead ?? 0) + (fuMentsu ?? 0);
-                                const hasUnknown = !allFilled;
+
                                 return (
                                   <>
                                     {hasAny && (
