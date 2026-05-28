@@ -395,7 +395,6 @@ export function getFeedback(recentN: number = 20): FeedbackData {
   const correctRate = Math.round((correctCount / recent.length) * 100);
 
   const categoryMistakes = new Map<ErrorCategory, number>();
-  const categoryCorrects = new Map<ErrorCategory, number>();
   for (const r of recent) {
     if (!r.isCorrect && r.category) {
       categoryMistakes.set(r.category, (categoryMistakes.get(r.category) ?? 0) + 1);
@@ -417,7 +416,7 @@ export function getFeedback(recentN: number = 20): FeedbackData {
   const weaknesses = Array.from(categoryMistakes.entries())
     .sort((a, b) => b[1] - a[1])
     .slice(0, 2)
-    .map(([cat, count]) => ({ label: CATEGORY_LABELS[cat], category: cat }));
+    .map(([cat, _count]) => ({ label: CATEGORY_LABELS[cat], category: cat }));
 
   if (correctRate >= 80 && weaknesses.length === 0) {
     return {

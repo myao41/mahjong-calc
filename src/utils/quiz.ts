@@ -1316,7 +1316,7 @@ export function generateQuiz(difficulty: Difficulty = 'normal'): QuizQuestion {
 
 // === 検定用出題 ===
 
-import type { CertLevel, QuizConstraints } from './certification';
+import type { CertLevel } from './certification';
 
 export function generateCertQuiz(level: CertLevel): QuizQuestion {
   const constraints = level.quizConstraints;
