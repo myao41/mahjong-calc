@@ -5,6 +5,7 @@ import {
   getWeeklyStats, getStatsByDifficulty, getFeedback,
   type Stats, type CategoryCount, type WeeklyData, type FeedbackData,
 } from '../utils/learningLog';
+import { getStreak, type StreakData } from '../utils/streak';
 
 export function LearningLogPage() {
   const navigate = useNavigate();
@@ -15,6 +16,7 @@ export function LearningLogPage() {
   const [ranking, setRanking] = useState<CategoryCount[]>([]);
   const [diffStats, setDiffStats] = useState<Record<string, Stats>>({});
   const [feedback, setFeedback] = useState<FeedbackData | null>(null);
+  const [streak, setStreak] = useState<StreakData>({ current: 0, best: 0 });
 
   const refresh = useCallback(() => {
     setStats(getStats());
@@ -23,6 +25,7 @@ export function LearningLogPage() {
     setRanking(getCategoryRanking());
     setDiffStats(getStatsByDifficulty());
     setFeedback(getFeedback(20));
+    setStreak(getStreak());
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
@@ -52,7 +55,7 @@ export function LearningLogPage() {
 
       {todayStats && todayStats.total > 0 && <TodaySection stats={todayStats} />}
       <WeeklyChart data={weekly} />
-      <SummarySection stats={stats} />
+      <SummarySection stats={stats} streak={streak} />
       <DifficultySection diffStats={diffStats} />
       {ranking.length > 0 && (
         <RankingSection ranking={ranking} onStartWeakness={onStartWeakness} />
@@ -235,7 +238,7 @@ function WeeklyChart({ data }: { data: WeeklyData[] }) {
 // Summary
 // =========================================================================
 
-function SummarySection({ stats }: { stats: Stats }) {
+function SummarySection({ stats, streak }: { stats: Stats; streak: StreakData }) {
   const pct = (n: number, d: number) => d === 0 ? 0 : Math.round((n / d) * 100);
 
   return (
@@ -250,6 +253,23 @@ function SummarySection({ stats }: { stats: Stats }) {
         <StatCard value={`${stats.total}`} label="累計問題" />
         <StatCard value={`${stats.mistakeCount}`} label="不正解" />
       </div>
+
+      {(streak.current > 0 || streak.best > 0) && (
+        <div style={{
+          display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)',
+          gap: 8, marginBottom: 12,
+        }}>
+          <StatCard
+            value={`${streak.current}`}
+            label="現在の連続正解"
+            highlight={streak.current >= 3}
+          />
+          <StatCard
+            value={`${streak.best}`}
+            label="最高連続正解"
+          />
+        </div>
+      )}
 
       <div style={{ background: '#fff', borderRadius: 8, padding: 12, border: '1px solid #e0e0e0' }}>
         <div style={{ fontSize: 13, fontWeight: 'bold', marginBottom: 8, color: '#2c3e50' }}>

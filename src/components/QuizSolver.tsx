@@ -8,6 +8,7 @@ import type { UserAnswer } from '../utils/learningLog';
 import { useViewport } from '../utils/useViewport';
 import type { Tile } from '../types';
 import type { CertAnswerMode } from '../utils/certification';
+import { recordStreakResult, getStreak, getStreakMilestone, getStreakBreakMessage, type StreakData } from '../utils/streak';
 
 /** 鳴いた牌の最左を90度横向きに表示するヘルパー */
 function RotatedTile({ tile, isMobile, widthPx }: { tile: Tile; isMobile: boolean; widthPx?: number }) {
@@ -257,6 +258,8 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
   const [handWidth, setHandWidth] = useState<number | undefined>(undefined);
   const [selectedYaku, setSelectedYaku] = useState<string | null>(null);
   const [selectedFuOnly, setSelectedFuOnly] = useState<number | null>(null);
+  const [streakData, setStreakData] = useState<StreakData | null>(null);
+  const prevStreakRef = useRef(getStreak().current);
 
   // Reset when question changes
   useEffect(() => {
@@ -361,12 +364,14 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
 
   const handleSubmit = useCallback(() => {
     if (phase !== 'answering') return;
+    prevStreakRef.current = getStreak().current;
     const a = answer;
 
     if (isYakuName) {
       const allCorrect = selectedYaku === correctYakumanName;
       const user: UserAnswer = { han: 0, fu: 0, score1: 0, score2: 0 };
       setPhase(allCorrect ? 'correct' : 'wrong');
+      setStreakData(recordStreakResult(allCorrect));
       onAnswered?.(user, allCorrect);
       return;
     }
@@ -375,6 +380,7 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
       const allCorrect = selectedFuOnly === a.fu;
       const user: UserAnswer = { han: 0, fu: selectedFuOnly ?? 0, score1: 0, score2: 0 };
       setPhase(allCorrect ? 'correct' : 'wrong');
+      setStreakData(recordStreakResult(allCorrect));
       onAnswered?.(user, allCorrect);
       return;
     }
@@ -425,6 +431,7 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
         ? (hanOk && fuDetailOk && scoreOk)
         : (hanOk && fuOk && scoreOk);
     setPhase(allCorrect ? 'correct' : 'wrong');
+    setStreakData(recordStreakResult(allCorrect));
     onAnswered?.(user, allCorrect);
   }, [phase, answer, inputHan, inputFu, inputScore1, inputScore2, onAnswered, isSimple, isFuDetail, isYakuName, isFuOnly, selectedYaku, selectedFuOnly, correctYakumanName, specialFuType, fuAgari, fuWait, fuHead, fuMentsu, fuSpecial, correctFuAgari, correctFuWait, correctFuHead, correctMentsuTotal, expectedRon, expectedTsumoAll, expectedTsumoChild, expectedTsumoDealer]);
 
@@ -1049,11 +1056,46 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
             </div>
           )}
           <div style={{
-            fontSize: 26, fontWeight: 'bold', textAlign: 'center', marginBottom: 12,
+            fontSize: 26, fontWeight: 'bold', textAlign: 'center', marginBottom: 4,
             color: phase === 'correct' ? '#27ae60' : '#e74c3c',
           }}>
             {phase === 'correct' ? '正解!' : '不正解'}
           </div>
+
+          {streakData && (() => {
+            if (phase === 'correct' && streakData.current >= 2) {
+              const milestone = getStreakMilestone(streakData.current);
+              return (
+                <div style={{
+                  textAlign: 'center', marginBottom: 12,
+                  fontSize: milestone ? 18 : 14,
+                  fontWeight: milestone ? 'bold' : 'normal',
+                  color: milestone ? '#e67e22' : '#8d6e63',
+                }}>
+                  {milestone
+                    ? `${streakData.current}連続正解達成！`
+                    : `${streakData.current}連続正解中`}
+                  {streakData.current === streakData.best && streakData.best >= 3 && (
+                    <span style={{ fontSize: 13, color: '#e67e22', marginLeft: 6 }}>自己ベスト!</span>
+                  )}
+                </div>
+              );
+            }
+            if (phase === 'wrong') {
+              const msg = getStreakBreakMessage(prevStreakRef.current, streakData.best);
+              if (msg) {
+                return (
+                  <div style={{
+                    textAlign: 'center', marginBottom: 12,
+                    fontSize: 13, color: '#8d6e63',
+                  }}>
+                    {msg}
+                  </div>
+                );
+              }
+            }
+            return <div style={{ marginBottom: 8 }} />;
+          })()}
 
           {isYakuName ? (
             <div style={{ textAlign: 'center', marginBottom: 12 }}>

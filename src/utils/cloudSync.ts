@@ -4,6 +4,7 @@ import type { AnswerRecord } from './learningLog';
 import type { SavedProblem } from './storage';
 import type { CertRecord } from './certification';
 import type { Settings } from './settings';
+import type { StreakData } from './streak';
 
 let syncErrorShown = false;
 
@@ -217,6 +218,39 @@ export async function pullSettings(): Promise<Settings | null> {
 }
 
 // =============================================
+// Streak
+// =============================================
+
+export async function pushStreak(data: StreakData): Promise<void> {
+  const userId = await getUserId();
+  if (!userId) return;
+
+  const { error } = await supabase.from('user_streak').upsert({
+    user_id: userId,
+    current: data.current,
+    best: data.best,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'user_id' });
+
+  if (error) { console.error('[cloud] pushStreak error:', error); notifySyncError(); }
+}
+
+export async function pullStreak(): Promise<StreakData | null> {
+  const userId = await getUserId();
+  if (!userId) return null;
+
+  const { data, error } = await supabase
+    .from('user_streak')
+    .select('*')
+    .eq('user_id', userId)
+    .single();
+
+  if (error || !data) return null;
+
+  return { current: data.current, best: data.best };
+}
+
+// =============================================
 // Delete All User Data (withdraw)
 // =============================================
 
@@ -229,6 +263,7 @@ export async function deleteAllCloudData(): Promise<void> {
     supabase.from('custom_problems').delete().eq('user_id', userId),
     supabase.from('cert_records').delete().eq('user_id', userId),
     supabase.from('user_settings').delete().eq('user_id', userId),
+    supabase.from('user_streak').delete().eq('user_id', userId),
   ]);
 }
 
@@ -246,6 +281,7 @@ export async function syncOnLogin(): Promise<void> {
       syncCustomProblems(),
       syncCertRecords(),
       syncSettings(),
+      syncStreak(),
     ]);
   } catch (e) {
     console.error('[cloud] syncOnLogin error:', e);
@@ -332,5 +368,26 @@ async function syncSettings(): Promise<void> {
     // No cloud settings: push local to cloud
     const local = loadSettings();
     await pushSettings(local);
+  }
+}
+
+async function syncStreak(): Promise<void> {
+  const { loadStreakFromStorage, saveStreakDirect } = await import('./streak');
+  const local = loadStreakFromStorage();
+  const cloud = await pullStreak();
+
+  if (cloud) {
+    const merged = {
+      current: Math.max(local.current, cloud.current),
+      best: Math.max(local.best, cloud.best),
+    };
+    saveStreakDirect(merged);
+    if (merged.best !== cloud.best || merged.current !== cloud.current) {
+      await pushStreak(merged);
+    }
+  } else {
+    if (local.best > 0 || local.current > 0) {
+      await pushStreak(local);
+    }
   }
 }
