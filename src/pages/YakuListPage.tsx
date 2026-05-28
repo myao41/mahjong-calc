@@ -88,9 +88,9 @@ const YAKU_DATA: { section: string; yaku: YakuEntry[] }[] = [
   {
     section: 'その他',
     yaku: [
-      { name: 'ドラ', han: 1, desc: 'ドラ表示牌の次の牌（1枚につき1翻）' },
-      { name: '裏ドラ', han: 1, menzenOnly: true, desc: '立直和了時、ドラ表示牌の下の牌' },
-      { name: '赤ドラ', han: 1, desc: '赤い五萬・五筒・五索（1枚につき1翻）' },
+      { name: 'ドラ', han: 1, desc: 'ドラ表示牌の次の牌' },
+      { name: '裏ドラ', han: 1, menzenOnly: true, desc: '立直和了時、ドラ表示牌の下の牌の次の牌' },
+      { name: '赤ドラ', han: 1, desc: '赤い五萬・五筒・五索' },
     ],
   },
 ];
