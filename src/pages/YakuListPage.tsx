@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import type { Tile, QuizQuestion } from '../types';
 import { TileButton } from '../components/TileButton';
 import { generateFromYaku } from '../utils/quiz';
@@ -95,30 +95,41 @@ const YAKU_DATA: { section: string; yaku: YakuEntry[] }[] = [
   },
 ];
 
-/** 鳴いた牌の最左を90度横向きに表示 */
-function RotatedTile({ tile }: { tile: Tile }) {
-  const { isMobile } = useViewport();
-  // TileButton size="small" の実際のサイズに合わせる
-  const tileW = isMobile ? 18 : 26;
-  const tileH = Math.round(tileW * 75 / 56);
+function RotatedTile({ tile, widthPx }: { tile: Tile; widthPx: number }) {
+  const tileH = Math.round(widthPx * 75 / 56);
   return (
     <div style={{
-      width: tileH, height: tileW,
+      width: tileH, height: widthPx,
       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
       flexShrink: 0,
     }}>
       <div style={{ transform: 'rotate(-90deg)' }}>
-        <TileButton tile={tile} size="small" />
+        <TileButton tile={tile} size="normal" widthPx={widthPx} />
       </div>
     </div>
   );
 }
 
-/** 手牌の例表示 */
 function HandExample({ question }: { question: QuizQuestion }) {
+  const { isMobile } = useViewport();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerW, setContainerW] = useState<number | undefined>(undefined);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const el = containerRef.current;
+    const measure = () => {
+      const s = getComputedStyle(el);
+      setContainerW(el.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const { closedTiles, openMelds, condition } = question;
 
-  // 和了牌を分離
   let agariIdx = -1;
   for (let j = 0; j < closedTiles.length; j++) {
     if (closedTiles[j].suit === condition.agariTile.suit &&
@@ -130,60 +141,96 @@ function HandExample({ question }: { question: QuizQuestion }) {
   const agariTile = agariIdx >= 0 ? closedTiles[agariIdx] : null;
   const hasMelds = openMelds.length > 0;
 
+  const ROTATE_RATIO = 75 / 56;
+  let tileUnits = mainHand.length + (agariTile ? 1 : 0);
+  for (const m of openMelds) {
+    const isAnkan = m.type === 'kantsu' && !m.isOpen;
+    if (isAnkan) {
+      tileUnits += m.tiles.length;
+    } else {
+      tileUnits += ROTATE_RATIO + (m.tiles.length - 1);
+    }
+  }
+  const spacerCount = (hasMelds ? 1 : 0) + (agariTile ? 1 : 0);
+  const spacerW = isMobile ? 8 : 12;
+  const meldGapCount = hasMelds ? Math.max(0, openMelds.length - 1) : 0;
+
+  const defaultTileW = isMobile ? 24 : 38;
+  const cw = containerW ?? 999;
+  const availableW = cw - spacerCount * spacerW - meldGapCount * 4;
+  const fittedTileW = Math.floor(availableW / Math.max(tileUnits, 1));
+  const tw = Math.max(16, Math.min(defaultTileW, fittedTileW));
+  const badgeScale = Math.min(1, tw / defaultTileW);
+  const badgeFontSize = Math.max(9, Math.round((isMobile ? 11 : 12) * badgeScale));
+
   return (
-    <div style={{
-      display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end',
-      gap: 2, justifyContent: 'center',
-    }}>
-      {/* 手牌 */}
-      {mainHand.map((tile, i) => (
-        <div key={i} style={{ flexShrink: 0 }}>
-          <TileButton tile={tile} size="small" />
-        </div>
-      ))}
-
-      {/* 副露 */}
-      {hasMelds && (
-        <>
-          <div style={{ width: 6, flexShrink: 0 }} />
-          {openMelds.map((meld, mi) => {
-            const isAnkan = meld.type === 'kantsu' && !meld.isOpen;
-            return (
-              <div key={`m-${mi}`} style={{
-                display: 'flex', alignItems: 'flex-end',
-                marginLeft: mi > 0 ? 2 : 0, flexShrink: 0,
-              }}>
-                {meld.tiles.map((tile, ti) => (
-                  !isAnkan && ti === 0
-                    ? <RotatedTile key={ti} tile={tile} />
-                    : <TileButton key={ti} tile={tile} size="small" />
-                ))}
-              </div>
-            );
-          })}
-        </>
-      )}
-
-      {/* 和了牌 */}
-      {agariTile && (
-        <>
-          <div style={{ width: 6, flexShrink: 0 }} />
-          <div style={{
-            display: 'flex', flexDirection: 'column',
-            alignItems: 'center', flexShrink: 0,
-          }}>
-            <div style={{
-              fontSize: 8, color: '#fff', fontWeight: 'bold',
-              background: condition.agariType === 'tsumo' ? '#16a085' : '#e74c3c',
-              padding: '0px 4px', borderRadius: 2,
-              lineHeight: 1.4, marginBottom: 1,
-            }}>
-              {condition.agariType === 'tsumo' ? 'ツモ' : 'ロン'}
-            </div>
-            <TileButton tile={agariTile} size="small" />
+    <div ref={containerRef} style={{ padding: '0 4px' }}>
+      <div style={{
+        display: 'flex', flexWrap: 'nowrap',
+        alignItems: 'flex-end', justifyContent: 'center',
+      }}>
+        {mainHand.map((tile, i) => (
+          <div key={i} style={{ flexShrink: 0 }}>
+            <TileButton tile={tile} widthPx={tw} />
           </div>
-        </>
-      )}
+        ))}
+
+        {hasMelds && (
+          <>
+            <div style={{ width: spacerW, flexShrink: 0 }} />
+            <div style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'flex-end' }}>
+              {openMelds.map((meld, mi) => {
+                const isAnkan = meld.type === 'kantsu' && !meld.isOpen;
+                return (
+                  <div key={`m-${mi}`} style={{
+                    display: 'flex', alignItems: 'flex-end',
+                    marginLeft: mi > 0 ? 4 : 0, flexShrink: 0,
+                  }}>
+                    {meld.tiles.map((tile, ti) => {
+                      if (isAnkan && (ti === 0 || ti === 3)) {
+                        const h = Math.round(tw * 75 / 56);
+                        return (
+                          <div key={ti} style={{
+                            width: tw, height: h, flexShrink: 0,
+                            borderRadius: 3,
+                            background: '#E2B007',
+                            border: '1px solid #D49B00',
+                            boxSizing: 'border-box',
+                          }} />
+                        );
+                      }
+                      if (!isAnkan && ti === 0) {
+                        return <RotatedTile key={ti} tile={tile} widthPx={tw} />;
+                      }
+                      return <TileButton key={ti} tile={tile} size="normal" widthPx={tw} />;
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        {agariTile && (
+          <>
+            <div style={{ width: spacerW, flexShrink: 0 }} />
+            <div style={{
+              display: 'flex', flexDirection: 'column',
+              alignItems: 'center', flexShrink: 0,
+            }}>
+              <div style={{
+                fontSize: badgeFontSize, color: '#fff', fontWeight: 'bold',
+                background: condition.agariType === 'tsumo' ? '#16a085' : '#e74c3c',
+                padding: '1px 4px', borderRadius: 3,
+                lineHeight: 1.3, marginBottom: Math.round(4 * badgeScale + 2),
+              }}>
+                {condition.agariType === 'tsumo' ? 'ツモ' : 'ロン'}
+              </div>
+              <TileButton tile={agariTile} widthPx={tw} />
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

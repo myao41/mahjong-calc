@@ -1111,7 +1111,7 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
           ) : isFuOnly ? (
             <div style={{ textAlign: 'center', marginBottom: 12 }}>
               <div style={{ fontSize: 22, fontWeight: 'bold', color: '#2c3e50', marginBottom: 4 }}>
-                {answer.fu}符（繰り上がり前: {answer.rawFu}符）
+                {answer.fu}符（テンパネ前: {answer.rawFu}符）
               </div>
               {phase === 'wrong' && selectedFuOnly !== null && (
                 <div style={{ fontSize: 14, color: '#e74c3c' }}>
@@ -1135,7 +1135,7 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
                 {honbaPayments}
               </div>
               <div style={{ textAlign: 'center', fontSize: 15, color: '#7f8c8d', marginBottom: 16 }}>
-                {answer.han}翻 / {answer.fu}符（繰り上がり前: {answer.rawFu}）/
+                {answer.han}翻 / {answer.fu}符（テンパネ前: {answer.rawFu}）/
                 {answer.isDealer ? ' 親' : ' 子'} / {answer.agariType === 'tsumo' ? 'ツモ' : 'ロン'}
               </div>
             </>
@@ -1252,11 +1252,11 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
                 fontSize: 15,
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>合計（繰り上がり前）</span>
+                  <span>合計（テンパネ前）</span>
                   <span style={{ fontWeight: 'bold' }}>{answer.rawFu}符</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', color: '#7f8c8d' }}>
-                  <span>繰り上がり後</span>
+                  <span>テンパネ後</span>
                   <span>{answer.fu}符</span>
                 </div>
               </div>

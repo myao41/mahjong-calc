@@ -856,7 +856,7 @@ function CustomProblemEditor({ initial, onCancel, onSaved, onSolve }: EditorProp
             {calcResult.payments}
           </div>
           <div style={{ textAlign: 'center', fontSize: 13, color: '#7f8c8d', marginBottom: 10 }}>
-            {calcResult.han}翻 / {calcResult.fu}符（繰り上がり前: {calcResult.rawFu}）/
+            {calcResult.han}翻 / {calcResult.fu}符（テンパネ前: {calcResult.rawFu}）/
             {calcResult.isDealer ? ' 親' : ' 子'} / {calcResult.agariType === 'tsumo' ? 'ツモ' : 'ロン'}
           </div>
           <div style={{ fontSize: 13, color: '#2c3e50' }}>
