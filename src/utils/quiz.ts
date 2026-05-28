@@ -1314,6 +1314,57 @@ export function generateQuiz(difficulty: Difficulty = 'normal'): QuizQuestion {
   return { closedTiles, openMelds: [], condition, answer };
 }
 
+// === 検定用出題 ===
+
+import type { CertLevel, QuizConstraints } from './certification';
+
+export function generateCertQuiz(level: CertLevel): QuizQuestion {
+  const constraints = level.quizConstraints;
+  const strategies = constraints?.strategies ?? ['random', 'pinfu', 'tanyao', 'honitsu', 'ittsu', 'sanshoku', 'chiitoitsu', 'toitoi'];
+
+  for (let retry = 0; retry < 300; retry++) {
+    const strategy = retry < 200 ? pick(strategies) : pickStrategy(level.difficulty);
+    const hand = generateHandByStrategy(strategy);
+    if (!hand) continue;
+
+    const condition = makeBaseCondition(hand);
+
+    if (constraints?.isDealer !== undefined) {
+      condition.seatWind = constraints.isDealer ? 1 : pick([2, 3, 4] as Wind[]);
+    }
+    if (constraints?.agariType) {
+      condition.agariType = constraints.agariType;
+      condition.agariTile = hand.agariTile;
+      if (constraints.agariType === 'tsumo') {
+        condition.isHoutei = false;
+        if (Math.random() < 0.05) condition.isHaitei = true;
+      } else {
+        condition.isHaitei = false;
+        if (Math.random() < 0.05) condition.isHoutei = true;
+      }
+    }
+
+    const isMenzen = hand.openMelds.every(m => !m.isOpen);
+    if (isMenzen && Math.random() < 0.3) {
+      condition.isRiichi = true;
+    }
+
+    let answer = calculateScore(hand.closedTiles, hand.openMelds, condition);
+    if (!answer && isMenzen) {
+      condition.isRiichi = true;
+      answer = calculateScore(hand.closedTiles, hand.openMelds, condition);
+    }
+    if (!answer) continue;
+
+    if (constraints?.targetFu && !constraints.targetFu.includes(answer.fu)) continue;
+    if (constraints?.yakumanOnly && !answer.yaku.some(y => y.isYakuman)) continue;
+
+    return { closedTiles: hand.closedTiles, openMelds: hand.openMelds, condition, answer };
+  }
+
+  return generateQuiz(level.difficulty);
+}
+
 // === 役から自動生成 ===
 
 export function generateFromYaku(strategy: string): QuizQuestion | null {

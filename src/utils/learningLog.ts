@@ -360,6 +360,104 @@ export function getStatsByDifficulty(): Record<string, Stats> {
   return result;
 }
 
+// === 直近の傾向分析（フィードバック用） ===
+
+export interface FeedbackData {
+  recentTotal: number;
+  recentCorrectRate: number;
+  strengths: string[];
+  weaknesses: { label: string; category: ErrorCategory }[];
+  suggestedAction: 'practice_weakness' | 'step_up' | 'keep_going' | 'need_more_data';
+  suggestedMessage: string;
+  ctaLabel: string;
+  ctaPath: string;
+}
+
+export function getFeedback(recentN: number = 20): FeedbackData {
+  const all = getAllRecords();
+  const sorted = [...all].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+  const recent = sorted.slice(0, recentN);
+
+  if (recent.length < 10) {
+    return {
+      recentTotal: recent.length,
+      recentCorrectRate: 0,
+      strengths: [],
+      weaknesses: [],
+      suggestedAction: 'need_more_data',
+      suggestedMessage: `まだデータが少ないので、もう少し問題を解いてみましょう！\nあと${10 - recent.length}問解くとあなたの傾向が分析できます。`,
+      ctaLabel: 'クイズに挑戦',
+      ctaPath: '/quiz/normal',
+    };
+  }
+
+  const correctCount = recent.filter(r => r.isCorrect).length;
+  const correctRate = Math.round((correctCount / recent.length) * 100);
+
+  const categoryMistakes = new Map<ErrorCategory, number>();
+  const categoryCorrects = new Map<ErrorCategory, number>();
+  for (const r of recent) {
+    if (!r.isCorrect && r.category) {
+      categoryMistakes.set(r.category, (categoryMistakes.get(r.category) ?? 0) + 1);
+    }
+  }
+
+  const scoreLookup = recent.filter(r => !r.errors.score).length;
+  const hanLookup = recent.filter(r => !r.errors.han).length;
+  const fuLookup = recent.filter(r => !r.errors.fu).length;
+
+  const strengths: string[] = [];
+  const scorePct = Math.round((scoreLookup / recent.length) * 100);
+  const hanPct = Math.round((hanLookup / recent.length) * 100);
+  const fuPct = Math.round((fuLookup / recent.length) * 100);
+  if (scorePct >= 80) strengths.push(`点数計算: 正答率${scorePct}%`);
+  if (hanPct >= 80) strengths.push(`翻数判定: 正答率${hanPct}%`);
+  if (fuPct >= 80) strengths.push(`符計算: 正答率${fuPct}%`);
+
+  const weaknesses = Array.from(categoryMistakes.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 2)
+    .map(([cat, count]) => ({ label: CATEGORY_LABELS[cat], category: cat }));
+
+  if (correctRate >= 80 && weaknesses.length === 0) {
+    return {
+      recentTotal: recent.length,
+      recentCorrectRate: correctRate,
+      strengths,
+      weaknesses,
+      suggestedAction: 'step_up',
+      suggestedMessage: `直近${recent.length}問で正答率${correctRate}%！\n${strengths.length > 0 ? strengths[0] + 'はもう安定してますね。\n' : ''}次は検定に挑戦してみては？`,
+      ctaLabel: '検定に挑戦',
+      ctaPath: '/quiz/cert',
+    };
+  }
+
+  if (weaknesses.length > 0) {
+    const topWeak = weaknesses[0];
+    return {
+      recentTotal: recent.length,
+      recentCorrectRate: correctRate,
+      strengths,
+      weaknesses,
+      suggestedAction: 'practice_weakness',
+      suggestedMessage: `直近${recent.length}問を見ると、${strengths.length > 0 ? strengths[0] + 'はバッチリです！\n' : ''}ただ、「${topWeak.label}」で間違いが続いています。\n苦手モードで集中的に練習するのがおすすめです。`,
+      ctaLabel: '苦手を練習する',
+      ctaPath: '/quiz/weakness',
+    };
+  }
+
+  return {
+    recentTotal: recent.length,
+    recentCorrectRate: correctRate,
+    strengths,
+    weaknesses,
+    suggestedAction: 'keep_going',
+    suggestedMessage: `直近${recent.length}問で正答率${correctRate}%。\nこの調子で続けていきましょう！`,
+    ctaLabel: 'クイズに挑戦',
+    ctaPath: '/quiz/normal',
+  };
+}
+
 function computeStats(records: AnswerRecord[]): Stats {
   const total = records.length;
   const correct = records.filter(r => r.isCorrect).length;

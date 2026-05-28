@@ -1,23 +1,17 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { QuizQuestion } from '../types';
-import { generateQuiz } from '../utils/quiz';
+import { generateCertQuiz } from '../utils/quiz';
 import { QuizSolver } from '../components/QuizSolver';
 import {
-  CERT_LEVELS, type CertLevel,
-  saveCertRecord, getBestRecord, hasPassed,
+  CERT_CATEGORIES, CERT_LEVELS, type CertLevel,
+  saveCertRecord, getBestRecord, hasPassed, isUnlocked,
+  getLevelsByCategory,
 } from '../utils/certification';
 import type { UserAnswer } from '../utils/learningLog';
 import { useViewport } from '../utils/useViewport';
 
 type Phase = 'select' | 'confirm' | 'testing' | 'result';
-
-const LEVEL_YAKU_EXAMPLES: Record<string, string> = {
-  grade1: '平和・断么九 など',
-  grade2: '三色同順・七対子・混一色 など',
-  grade3: '混全帯・清一色・小三元 など',
-  dan1: '混全帯・清一色・小三元 など',
-};
 
 export function CertificationPage() {
   const { levelId } = useParams<{ levelId?: string }>();
@@ -53,7 +47,7 @@ export function CertificationPage() {
     setLevel(lv);
     const qs: QuizQuestion[] = [];
     for (let i = 0; i < lv.totalQuestions; i++) {
-      qs.push(generateQuiz(lv.difficulty));
+      qs.push(generateCertQuiz(lv));
     }
     setQuestions(qs);
     setQIndex(0);
@@ -77,7 +71,7 @@ export function CertificationPage() {
         date: new Date().toISOString(),
         correct,
         total: level.totalQuestions,
-        passed: correct === level.passCount,
+        passed: correct >= level.passCount,
       });
       setPhase('result');
     } else {
@@ -94,55 +88,87 @@ export function CertificationPage() {
           background: '#fff8e1', borderRadius: 8, border: '1px solid #ffe082',
         }}>
           <div style={{ fontSize: 18, fontWeight: 'bold', color: '#e65100' }}>
-            🏆 検定モード
+            検定モード
           </div>
           <div style={{ fontSize: 13, color: '#8d6e63', marginTop: 4 }}>
-            全問正解で合格！（5問・制限時間あり）
+            合格すると次の検定が解放されます
           </div>
         </div>
 
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: 10, marginBottom: 16,
-        }}>
-          {CERT_LEVELS.map(lv => {
-            const passed = hasPassed(lv.id);
-            const best = getBestRecord(lv.id);
-            return (
-              <button
-                key={lv.id}
-                onClick={() => selectLevel(lv)}
-                style={{
-                  padding: isMobile ? 12 : 16, borderRadius: 10,
-                  border: passed ? '2px solid #27ae60' : '1px solid #bdc3c7',
-                  background: passed ? '#f0fff4' : '#fff',
-                  cursor: 'pointer',
-                  display: 'flex', flexDirection: 'column',
-                  alignItems: 'center', gap: 4,
-                }}
-              >
-                <div style={{
-                  fontSize: 22, fontWeight: 'bold', color: '#2c3e50',
-                }}>{lv.label}</div>
-                <div style={{ fontSize: 12, color: '#7f8c8d' }}>{lv.desc}</div>
-                {passed && (
-                  <div style={{ fontSize: 12, color: '#27ae60', fontWeight: 'bold', marginTop: 2 }}>
-                    ✅ 合格
-                  </div>
-                )}
-                {!passed && best && (
-                  <div style={{ fontSize: 12, color: '#e74c3c', marginTop: 2 }}>
-                    最高: {best.correct}/{best.total}
-                  </div>
-                )}
-                {!passed && !best && (
-                  <div style={{ fontSize: 12, color: '#95a5a6', marginTop: 2 }}>未挑戦</div>
-                )}
-              </button>
-            );
-          })}
-        </div>
+        {CERT_CATEGORIES.map(cat => {
+          const levels = getLevelsByCategory(cat.id);
+          if (levels.length === 0) return null;
+          return (
+            <section key={cat.id} style={{ marginBottom: 16 }}>
+              <h3 style={{
+                fontSize: 14, color: '#2e7d32', marginBottom: 8,
+                padding: '6px 12px', background: '#e8f5e9', borderRadius: 4,
+                fontWeight: 'bold',
+              }}>
+                {cat.label}
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {levels.map(lv => {
+                  const unlocked = isUnlocked(lv);
+                  const passed = hasPassed(lv.id);
+                  const best = getBestRecord(lv.id);
+                  return (
+                    <button
+                      key={lv.id}
+                      onClick={() => unlocked && selectLevel(lv)}
+                      disabled={!unlocked}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: isMobile ? '10px 12px' : '12px 14px',
+                        borderRadius: 8,
+                        border: passed ? '2px solid #27ae60' : '1px solid #bdc3c7',
+                        background: !unlocked ? '#f5f5f5' : passed ? '#f0fff4' : '#fff',
+                        cursor: unlocked ? 'pointer' : 'default',
+                        opacity: unlocked ? 1 : 0.6,
+                        textAlign: 'left',
+                        width: '100%',
+                      }}
+                    >
+                      {!unlocked && (
+                        <span style={{ fontSize: 16, flexShrink: 0 }}>🔒</span>
+                      )}
+                      {passed && (
+                        <span style={{ fontSize: 16, flexShrink: 0 }}>✅</span>
+                      )}
+                      {unlocked && !passed && (
+                        <span style={{ fontSize: 16, flexShrink: 0, width: 20 }} />
+                      )}
+                      <div style={{ flex: 1 }}>
+                        <div style={{
+                          fontSize: 15, fontWeight: 'bold',
+                          color: unlocked ? '#2c3e50' : '#95a5a6',
+                        }}>
+                          {lv.label}
+                        </div>
+                        <div style={{ fontSize: 12, color: '#7f8c8d', marginTop: 2 }}>
+                          {lv.desc}
+                        </div>
+                      </div>
+                      <div style={{ flexShrink: 0, textAlign: 'right', fontSize: 12 }}>
+                        {passed && (
+                          <span style={{ color: '#27ae60', fontWeight: 'bold' }}>合格</span>
+                        )}
+                        {!passed && best && (
+                          <span style={{ color: '#e74c3c' }}>
+                            最高 {best.correct}/{best.total}
+                          </span>
+                        )}
+                        {unlocked && !passed && !best && (
+                          <span style={{ color: '#95a5a6' }}>未挑戦</span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          );
+        })}
 
         <button
           onClick={() => navigate('/quiz/normal')}
@@ -161,7 +187,13 @@ export function CertificationPage() {
 
   /* ── Confirm ── */
   if (phase === 'confirm' && level) {
-    const yakuExamples = LEVEL_YAKU_EXAMPLES[level.id] ?? level.desc;
+    const answerModeLabel =
+      level.answerMode === 'yaku-name' ? '役名を選択' :
+      level.answerMode === 'fu-only' ? '符を選択' :
+      level.answerMode === 'fu-detail' ? '翻・符(詳細)・点数' :
+      level.answerMode === 'simple' ? 'アガリ点数のみ' :
+      '翻・符・点数';
+
     return (
       <div>
         <div style={{
@@ -169,11 +201,9 @@ export function CertificationPage() {
           padding: isMobile ? '24px 16px' : '32px 24px',
           marginBottom: 16,
         }}>
-          <div style={{
-            textAlign: 'center', marginBottom: 20,
-          }}>
+          <div style={{ textAlign: 'center', marginBottom: 20 }}>
             <div style={{ fontSize: 16, color: '#e65100', fontWeight: 'bold', marginBottom: 4 }}>
-              🏆 検定
+              検定
             </div>
             <div style={{ fontSize: 28, fontWeight: 'bold', color: '#2c3e50' }}>
               {level.label}
@@ -184,8 +214,8 @@ export function CertificationPage() {
             display: 'grid', gridTemplateColumns: 'auto 1fr',
             gap: '8px 12px', fontSize: 14, color: '#2c3e50',
           }}>
-            <span style={{ color: '#7f8c8d' }}>出題範囲</span>
-            <span>{yakuExamples}</span>
+            <span style={{ color: '#7f8c8d' }}>内容</span>
+            <span>{level.desc}</span>
 
             <span style={{ color: '#7f8c8d' }}>問題数</span>
             <span>{level.totalQuestions}問</span>
@@ -194,16 +224,10 @@ export function CertificationPage() {
             <span>{level.timeLimit}秒 / 問</span>
 
             <span style={{ color: '#7f8c8d' }}>回答形式</span>
-            <span>アガリ点数のみ</span>
+            <span>{answerModeLabel}</span>
 
             <span style={{ color: '#7f8c8d' }}>合格基準</span>
-            <span>全問正解</span>
-          </div>
-
-          <div style={{
-            marginTop: 12, fontSize: 12, color: '#7f8c8d', lineHeight: 1.6,
-          }}>
-            ※ 検定の回答は学習履歴には記録されません
+            <span>{level.passCount}/{level.totalQuestions}問正解</span>
           </div>
         </div>
 
@@ -220,7 +244,7 @@ export function CertificationPage() {
             開始する
           </button>
           <button
-            onClick={() => setPhase('select')}
+            onClick={() => navigate('/quiz/cert')}
             style={{
               width: '100%', padding: '12px',
               borderRadius: 8, border: '1px solid #bdc3c7',
@@ -312,7 +336,7 @@ export function CertificationPage() {
   /* ── Result ── */
   if (phase === 'result' && level) {
     const correct = results.filter(Boolean).length;
-    const passed = correct === level.passCount;
+    const passed = correct >= level.passCount;
     return (
       <div>
         <div style={{
@@ -327,7 +351,7 @@ export function CertificationPage() {
             color: passed ? '#27ae60' : '#e74c3c',
             marginBottom: 8,
           }}>
-            {passed ? '🎉 合格！' : '不合格'}
+            {passed ? '合格！' : '不合格'}
           </div>
           <div style={{
             fontSize: 20, color: '#2c3e50',
@@ -363,7 +387,7 @@ export function CertificationPage() {
             再挑戦
           </button>
           <button
-            onClick={() => setPhase('select')}
+            onClick={() => navigate('/quiz/cert')}
             style={{
               width: '100%', padding: '12px',
               borderRadius: 8, border: '1px solid #bdc3c7',

@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   getStats, getCategoryRanking, clearAllRecords, getTodayStats,
-  getWeeklyStats, getStatsByDifficulty,
-  type Stats, type CategoryCount, type WeeklyData,
+  getWeeklyStats, getStatsByDifficulty, getFeedback,
+  type Stats, type CategoryCount, type WeeklyData, type FeedbackData,
 } from '../utils/learningLog';
 
 export function LearningLogPage() {
@@ -14,6 +14,7 @@ export function LearningLogPage() {
   const [weekly, setWeekly] = useState<WeeklyData[]>([]);
   const [ranking, setRanking] = useState<CategoryCount[]>([]);
   const [diffStats, setDiffStats] = useState<Record<string, Stats>>({});
+  const [feedback, setFeedback] = useState<FeedbackData | null>(null);
 
   const refresh = useCallback(() => {
     setStats(getStats());
@@ -21,6 +22,7 @@ export function LearningLogPage() {
     setWeekly(getWeeklyStats(8));
     setRanking(getCategoryRanking());
     setDiffStats(getStatsByDifficulty());
+    setFeedback(getFeedback(20));
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
@@ -45,6 +47,8 @@ export function LearningLogPage() {
   return (
     <div>
       <h2 style={{ fontSize: 18, color: '#2c3e50', marginBottom: 12 }}>学習履歴</h2>
+
+      {feedback && <FeedbackSection feedback={feedback} navigate={navigate} />}
 
       {todayStats && todayStats.total > 0 && <TodaySection stats={todayStats} />}
       <WeeklyChart data={weekly} />
@@ -452,5 +456,50 @@ function LearningLogHeader() {
         </div>
       )}
     </div>
+  );
+}
+
+// =========================================================================
+// Feedback (conversational)
+// =========================================================================
+
+function FeedbackSection({ feedback, navigate }: { feedback: FeedbackData; navigate: (path: string) => void }) {
+  return (
+    <section style={{ marginBottom: 20 }}>
+      <div style={{
+        background: '#fff', borderRadius: 12, border: '1px solid #e0e0e0',
+        padding: '16px 16px 12px',
+        position: 'relative',
+      }}>
+        <div style={{
+          fontSize: 13, fontWeight: 'bold', color: '#2e7d32',
+          marginBottom: 10,
+        }}>
+          最近の調子
+        </div>
+
+        <div style={{
+          fontSize: 14, lineHeight: 1.8, color: '#2c3e50',
+          whiteSpace: 'pre-line',
+        }}>
+          {feedback.suggestedMessage}
+        </div>
+
+        <button
+          onClick={() => navigate(feedback.ctaPath)}
+          style={{
+            marginTop: 12, padding: '10px 20px',
+            borderRadius: 8, border: 'none',
+            fontSize: 14, fontWeight: 'bold',
+            background: feedback.suggestedAction === 'practice_weakness' ? '#e67e22'
+              : feedback.suggestedAction === 'step_up' ? '#27ae60'
+              : '#3498db',
+            color: '#fff', cursor: 'pointer',
+          }}
+        >
+          {feedback.ctaLabel} →
+        </button>
+      </div>
+    </section>
   );
 }

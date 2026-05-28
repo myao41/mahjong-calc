@@ -7,6 +7,7 @@ import { generateHint } from '../utils/hint';
 import type { UserAnswer } from '../utils/learningLog';
 import { useViewport } from '../utils/useViewport';
 import type { Tile } from '../types';
+import type { CertAnswerMode } from '../utils/certification';
 
 /** 鳴いた牌の最左を90度横向きに表示するヘルパー */
 function RotatedTile({ tile, isMobile, widthPx }: { tile: Tile; isMobile: boolean; widthPx?: number }) {
@@ -31,6 +32,40 @@ function RotatedTile({ tile, isMobile, widthPx }: { tile: Tile; isMobile: boolea
 
 type Phase = 'answering' | 'correct' | 'wrong';
 
+const YAKUMAN_NAMES = [
+  '四暗刻', '大三元', '国士無双', '字一色', '緑一色',
+  '清老頭', '大四喜', '小四喜', '九蓮宝燈', '四槓子',
+];
+
+function generateYakumanChoices(correctYakuName: string): string[] {
+  const distractors = YAKUMAN_NAMES.filter(n => n !== correctYakuName);
+  for (let i = distractors.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [distractors[i], distractors[j]] = [distractors[j], distractors[i]];
+  }
+  const choices = [correctYakuName, ...distractors.slice(0, 3)];
+  for (let i = choices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [choices[i], choices[j]] = [choices[j], choices[i]];
+  }
+  return choices;
+}
+
+function generateFuOnlyChoices(correctFu: number): number[] {
+  const allFu = [20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 110];
+  const choices = new Set<number>([correctFu]);
+  const nearby = allFu.filter(f => Math.abs(f - correctFu) <= 20 && f !== correctFu);
+  for (const f of nearby) {
+    if (choices.size >= 4) break;
+    choices.add(f);
+  }
+  for (const f of allFu) {
+    if (choices.size >= 4) break;
+    choices.add(f);
+  }
+  return Array.from(choices).sort((a, b) => a - b);
+}
+
 interface Props {
   question: QuizQuestion;
   onNext: () => void;
@@ -39,7 +74,7 @@ interface Props {
   onAnswered?: (user: UserAnswer, isCorrect: boolean) => void;
   onSkip?: () => void;
   timeLimit?: number;
-  answerMode?: 'simple' | 'normal' | 'fu-detail';
+  answerMode?: CertAnswerMode;
   honba?: number;
 }
 
@@ -220,6 +255,8 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
   const handleSubmitRef = useRef<() => void>(() => {});
   const handRef = useRef<HTMLDivElement>(null);
   const [handWidth, setHandWidth] = useState<number | undefined>(undefined);
+  const [selectedYaku, setSelectedYaku] = useState<string | null>(null);
+  const [selectedFuOnly, setSelectedFuOnly] = useState<number | null>(null);
 
   // Reset when question changes
   useEffect(() => {
@@ -236,6 +273,8 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
     setFuSpecial(null);
     setTimedOut(false);
     setRemainingTime(timeLimit);
+    setSelectedYaku(null);
+    setSelectedFuOnly(null);
   }, [question, timeLimit]);
 
   // Measure hand container width for responsive tile sizing
@@ -258,6 +297,23 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
   const isTsumo = condition.agariType === 'tsumo';
   const isSimple = answerMode === 'simple';
   const isFuDetail = answerMode === 'fu-detail';
+  const isYakuName = answerMode === 'yaku-name';
+  const isFuOnly = answerMode === 'fu-only';
+
+  const yakumanChoices = useMemo(() => {
+    if (!isYakuName) return [];
+    const yakumanYaku = answer.yaku.find(y => y.isYakuman);
+    return generateYakumanChoices(yakumanYaku?.name ?? '');
+  }, [isYakuName, answer]);
+
+  const correctYakumanName = useMemo(() => {
+    return answer.yaku.find(y => y.isYakuman)?.name ?? '';
+  }, [answer]);
+
+  const fuOnlyChoices = useMemo(() => {
+    if (!isFuOnly) return [];
+    return generateFuOnlyChoices(answer.fu);
+  }, [isFuOnly, answer]);
 
   const specialFuType = useMemo(() => isSpecialFu(answer.fuCalc.details), [answer]);
   const correctMentsuTotal = useMemo(() => getMentsuTotal(answer.fuCalc.details), [answer]);
@@ -307,6 +363,22 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
     if (phase !== 'answering') return;
     const a = answer;
 
+    if (isYakuName) {
+      const allCorrect = selectedYaku === correctYakumanName;
+      const user: UserAnswer = { han: 0, fu: 0, score1: 0, score2: 0 };
+      setPhase(allCorrect ? 'correct' : 'wrong');
+      onAnswered?.(user, allCorrect);
+      return;
+    }
+
+    if (isFuOnly) {
+      const allCorrect = selectedFuOnly === a.fu;
+      const user: UserAnswer = { han: 0, fu: selectedFuOnly ?? 0, score1: 0, score2: 0 };
+      setPhase(allCorrect ? 'correct' : 'wrong');
+      onAnswered?.(user, allCorrect);
+      return;
+    }
+
     let derivedFu = Number(inputFu);
     if (isFuDetail) {
       if (specialFuType) {
@@ -354,7 +426,7 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
         : (hanOk && fuOk && scoreOk);
     setPhase(allCorrect ? 'correct' : 'wrong');
     onAnswered?.(user, allCorrect);
-  }, [phase, answer, inputHan, inputFu, inputScore1, inputScore2, onAnswered, isSimple, isFuDetail, specialFuType, fuAgari, fuWait, fuHead, fuMentsu, fuSpecial, correctFuAgari, correctFuWait, correctFuHead, correctMentsuTotal, expectedRon, expectedTsumoAll, expectedTsumoChild, expectedTsumoDealer]);
+  }, [phase, answer, inputHan, inputFu, inputScore1, inputScore2, onAnswered, isSimple, isFuDetail, isYakuName, isFuOnly, selectedYaku, selectedFuOnly, correctYakumanName, specialFuType, fuAgari, fuWait, fuHead, fuMentsu, fuSpecial, correctFuAgari, correctFuWait, correctFuHead, correctMentsuTotal, expectedRon, expectedTsumoAll, expectedTsumoChild, expectedTsumoDealer]);
 
   // Keep ref updated for timer callback
   handleSubmitRef.current = handleSubmit;
@@ -614,8 +686,96 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
         </div>
       )}
 
-      {/* Answer input */}
-      {phase === 'answering' && (
+      {/* Answer input: yaku-name mode */}
+      {phase === 'answering' && isYakuName && (
+        <div style={{
+          background: '#fff', borderRadius: 8,
+          padding: isMobile ? 12 : 16,
+          marginBottom: 14,
+          border: '1px solid #e0e0e0',
+        }}>
+          <div style={{ fontSize: 15, fontWeight: 'bold', color: '#2c3e50', marginBottom: 12 }}>
+            この役満は？
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+            {yakumanChoices.map(name => (
+              <button
+                key={name}
+                type="button"
+                onClick={() => setSelectedYaku(name)}
+                style={{
+                  padding: '14px 8px', borderRadius: 8,
+                  border: selectedYaku === name ? '2px solid #3498db' : '1px solid #bdc3c7',
+                  background: selectedYaku === name ? '#ebf5fb' : '#fff',
+                  color: '#2c3e50', fontSize: 15, fontWeight: 'bold',
+                  cursor: 'pointer',
+                }}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={handleSubmit}
+            disabled={!selectedYaku}
+            style={{
+              width: '100%', padding: '14px',
+              borderRadius: 8, border: 'none', fontSize: 18, fontWeight: 'bold',
+              background: selectedYaku ? '#3498db' : '#bdc3c7',
+              color: '#fff', cursor: selectedYaku ? 'pointer' : 'default',
+            }}
+          >
+            回答する
+          </button>
+        </div>
+      )}
+
+      {/* Answer input: fu-only mode */}
+      {phase === 'answering' && isFuOnly && (
+        <div style={{
+          background: '#fff', borderRadius: 8,
+          padding: isMobile ? 12 : 16,
+          marginBottom: 14,
+          border: '1px solid #e0e0e0',
+        }}>
+          <div style={{ fontSize: 15, fontWeight: 'bold', color: '#2c3e50', marginBottom: 12 }}>
+            この手は何符？（テンパネ後）
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 14 }}>
+            {fuOnlyChoices.map(fu => (
+              <button
+                key={fu}
+                type="button"
+                onClick={() => setSelectedFuOnly(fu)}
+                style={{
+                  padding: '14px 8px', borderRadius: 8,
+                  border: selectedFuOnly === fu ? '2px solid #3498db' : '1px solid #bdc3c7',
+                  background: selectedFuOnly === fu ? '#ebf5fb' : '#fff',
+                  color: '#2c3e50', fontSize: 16, fontWeight: 'bold',
+                  cursor: 'pointer',
+                }}
+              >
+                {fu}符
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={handleSubmit}
+            disabled={selectedFuOnly === null}
+            style={{
+              width: '100%', padding: '14px',
+              borderRadius: 8, border: 'none', fontSize: 18, fontWeight: 'bold',
+              background: selectedFuOnly !== null ? '#3498db' : '#bdc3c7',
+              color: '#fff', cursor: selectedFuOnly !== null ? 'pointer' : 'default',
+            }}
+          >
+            回答する
+          </button>
+        </div>
+      )}
+
+      {/* Answer input: standard modes */}
+      {phase === 'answering' && !isYakuName && !isFuOnly && (
         <div style={{
           background: '#fff', borderRadius: 8,
           padding: isMobile ? 12 : 16,
@@ -895,25 +1055,51 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
             {phase === 'correct' ? '正解!' : '不正解'}
           </div>
 
-          <div style={{
-            textAlign: 'center', fontSize: 22, fontWeight: 'bold',
-            color: '#2c3e50', marginBottom: 4,
-          }}>
-            {answer.scoreString}
-            {honba > 0 && <span style={{ fontSize: 14, color: '#6c5ce7', marginLeft: 8 }}>({honba}本場)</span>}
-          </div>
-          <div style={{
-            textAlign: 'center', fontSize: 20, color: '#e67e22',
-            fontWeight: 'bold', marginBottom: 12,
-          }}>
-            {honbaPayments}
-          </div>
-          <div style={{ textAlign: 'center', fontSize: 15, color: '#7f8c8d', marginBottom: 16 }}>
-            {answer.han}翻 / {answer.fu}符（繰り上がり前: {answer.rawFu}）/
-            {answer.isDealer ? ' 親' : ' 子'} / {answer.agariType === 'tsumo' ? 'ツモ' : 'ロン'}
-          </div>
+          {isYakuName ? (
+            <div style={{ textAlign: 'center', marginBottom: 12 }}>
+              <div style={{ fontSize: 22, fontWeight: 'bold', color: '#2c3e50', marginBottom: 4 }}>
+                {correctYakumanName}
+              </div>
+              {phase === 'wrong' && selectedYaku && (
+                <div style={{ fontSize: 14, color: '#e74c3c' }}>
+                  あなたの回答: {selectedYaku}
+                </div>
+              )}
+            </div>
+          ) : isFuOnly ? (
+            <div style={{ textAlign: 'center', marginBottom: 12 }}>
+              <div style={{ fontSize: 22, fontWeight: 'bold', color: '#2c3e50', marginBottom: 4 }}>
+                {answer.fu}符（繰り上がり前: {answer.rawFu}符）
+              </div>
+              {phase === 'wrong' && selectedFuOnly !== null && (
+                <div style={{ fontSize: 14, color: '#e74c3c' }}>
+                  あなたの回答: {selectedFuOnly}符
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              <div style={{
+                textAlign: 'center', fontSize: 22, fontWeight: 'bold',
+                color: '#2c3e50', marginBottom: 4,
+              }}>
+                {answer.scoreString}
+                {honba > 0 && <span style={{ fontSize: 14, color: '#6c5ce7', marginLeft: 8 }}>({honba}本場)</span>}
+              </div>
+              <div style={{
+                textAlign: 'center', fontSize: 20, color: '#e67e22',
+                fontWeight: 'bold', marginBottom: 12,
+              }}>
+                {honbaPayments}
+              </div>
+              <div style={{ textAlign: 'center', fontSize: 15, color: '#7f8c8d', marginBottom: 16 }}>
+                {answer.han}翻 / {answer.fu}符（繰り上がり前: {answer.rawFu}）/
+                {answer.isDealer ? ' 親' : ' 子'} / {answer.agariType === 'tsumo' ? 'ツモ' : 'ロン'}
+              </div>
+            </>
+          )}
 
-          {phase === 'wrong' && (
+          {phase === 'wrong' && !isYakuName && !isFuOnly && (
             <>
               {/* Hint (normal mode only) */}
               {!isSimple && (() => {
@@ -976,74 +1162,80 @@ export function QuizSolver({ question, onNext, nextLabel = '次の問題', title
             </>
           )}
 
-          {/* Yaku list - shown on both correct and wrong */}
-          <div style={{
-            background: '#fff', borderRadius: 6, padding: 12, marginBottom: 14,
-            border: '1px solid #eee',
-          }}>
-            <div style={{ fontSize: 15, fontWeight: 'bold', marginBottom: 8 }}>役一覧</div>
-            {answer.yaku.map((y, i) => (
-              <div key={i} style={{
-                display: 'flex', justifyContent: 'space-between',
-                padding: '3px 0', fontSize: 15,
-              }}>
-                <span>{y.name}</span>
-                <span style={{ color: '#7f8c8d' }}>{y.han}翻</span>
-              </div>
-            ))}
+          {/* Yaku list */}
+          {!isFuOnly && (
             <div style={{
-              borderTop: '1px solid #eee', marginTop: 6, paddingTop: 6,
-              display: 'flex', justifyContent: 'space-between',
-              fontSize: 16, fontWeight: 'bold',
+              background: '#fff', borderRadius: 6, padding: 12, marginBottom: 14,
+              border: '1px solid #eee',
             }}>
-              <span>合計</span>
-              <span>{answer.han}翻</span>
-            </div>
-          </div>
-
-          {/* Fu breakdown - shown on both correct and wrong */}
-          <div style={{
-            background: '#fff', borderRadius: 6, padding: 12, marginBottom: 14,
-            border: '1px solid #eee',
-          }}>
-            <div style={{ fontSize: 15, fontWeight: 'bold', marginBottom: 8 }}>符計算</div>
-            {answer.fuCalc.details.map((d, i) => (
-              <div key={i} style={{
+              <div style={{ fontSize: 15, fontWeight: 'bold', marginBottom: 8 }}>役一覧</div>
+              {answer.yaku.map((y, i) => (
+                <div key={i} style={{
+                  display: 'flex', justifyContent: 'space-between',
+                  padding: '3px 0', fontSize: 15,
+                }}>
+                  <span>{y.name}</span>
+                  <span style={{ color: '#7f8c8d' }}>{y.han}翻</span>
+                </div>
+              ))}
+              <div style={{
+                borderTop: '1px solid #eee', marginTop: 6, paddingTop: 6,
                 display: 'flex', justifyContent: 'space-between',
-                padding: '3px 0', fontSize: 15,
+                fontSize: 16, fontWeight: 'bold',
               }}>
-                <span>{d.name}</span>
-                <span style={{ color: '#7f8c8d' }}>{d.fu}符</span>
-              </div>
-            ))}
-            <div style={{
-              borderTop: '1px solid #eee', marginTop: 6, paddingTop: 6,
-              fontSize: 15,
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>合計（繰り上がり前）</span>
-                <span style={{ fontWeight: 'bold' }}>{answer.rawFu}符</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#7f8c8d' }}>
-                <span>繰り上がり後</span>
-                <span>{answer.fu}符</span>
+                <span>合計</span>
+                <span>{answer.han}翻</span>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Detail score table - shown on both correct and wrong */}
-          <div style={{
-            background: '#fff', borderRadius: 6, padding: 12,
-            border: '1px solid #eee',
-          }}>
-            <DetailScoreTable
-              highlightFu={answer.fu}
-              highlightHan={answer.han}
-              highlightYakuman={answer.yaku.some(y => y.isYakuman)}
-              defaultMode={isDealer ? 'dealer' : 'child'}
-              defaultAgari={isTsumo ? 'tsumo' : 'ron'}
-            />
-          </div>
+          {/* Fu breakdown */}
+          {!isYakuName && (
+            <div style={{
+              background: '#fff', borderRadius: 6, padding: 12, marginBottom: 14,
+              border: '1px solid #eee',
+            }}>
+              <div style={{ fontSize: 15, fontWeight: 'bold', marginBottom: 8 }}>符計算</div>
+              {answer.fuCalc.details.map((d, i) => (
+                <div key={i} style={{
+                  display: 'flex', justifyContent: 'space-between',
+                  padding: '3px 0', fontSize: 15,
+                }}>
+                  <span>{d.name}</span>
+                  <span style={{ color: '#7f8c8d' }}>{d.fu}符</span>
+                </div>
+              ))}
+              <div style={{
+                borderTop: '1px solid #eee', marginTop: 6, paddingTop: 6,
+                fontSize: 15,
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>合計（繰り上がり前）</span>
+                  <span style={{ fontWeight: 'bold' }}>{answer.rawFu}符</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#7f8c8d' }}>
+                  <span>繰り上がり後</span>
+                  <span>{answer.fu}符</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Detail score table */}
+          {!isYakuName && !isFuOnly && (
+            <div style={{
+              background: '#fff', borderRadius: 6, padding: 12,
+              border: '1px solid #eee',
+            }}>
+              <DetailScoreTable
+                highlightFu={answer.fu}
+                highlightHan={answer.han}
+                highlightYakuman={answer.yaku.some(y => y.isYakuman)}
+                defaultMode={isDealer ? 'dealer' : 'child'}
+                defaultAgari={isTsumo ? 'tsumo' : 'ron'}
+              />
+            </div>
+          )}
 
           <button
             onClick={onNext}
